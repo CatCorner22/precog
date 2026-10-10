@@ -20,6 +20,7 @@ import {
   rowOwnsBusiness,
   rowsKeptForAdding,
   suggestedDuties,
+  suggestedInMark,
   type FirstRowOutcome,
   type OwnTeamRow,
 } from "./own-team";
@@ -191,6 +192,7 @@ export function rowFromImportedPerson(
     ...(person.employeeId ? { employeeId: person.employeeId } : {}),
     ...(person.lastDay ? { lastDay: person.lastDay } : {}),
     suggestedFor: person.role,
+    ...suggestedInMark(industry),
     ...(onLeave ? { onLeave: true } : {}),
   };
 }
@@ -251,11 +253,17 @@ export function mergeTeamRows(
     matched.add(index);
     const before = rows[index];
     const sameTitle = nameKey(before.role) === nameKey(row.role);
-    rows[index] = {
-      ...before,
-      ...row,
-      ...(sameTitle ? { duties: before.duties, suggestedFor: before.suggestedFor } : {}),
-    };
+    // The same title keeps its ticks, read under the line of business that suggested them.
+    const kept = sameTitle
+      ? {
+          duties: before.duties,
+          suggestedFor: before.suggestedFor,
+          suggestedIn: before.suggestedIn,
+        }
+      : {};
+    const merged = { ...before, ...row, ...kept };
+    if (sameTitle && !before.suggestedIn) delete merged.suggestedIn;
+    rows[index] = merged;
   }
   return { rows: [...rows, ...added], added };
 }
@@ -384,6 +392,7 @@ export function rowsForJobTitle(
     role: entry.title,
     duties: [...duties],
     suggestedFor: entry.title,
+    ...suggestedInMark(industry),
   }));
 }
 

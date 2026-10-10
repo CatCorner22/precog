@@ -48,11 +48,12 @@ import {
   type ReportVersionRow,
 } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
-import type { OnboardingFacts } from "@/lib/precog/onboarding/decision-model";
 import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
 import {
   buildControlReportModel,
   NO_REPORT_EXAMPLES,
+  setupHeadcountOf,
+  type SetupHeadcount,
 } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
 import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
@@ -262,8 +263,16 @@ export function ControlReport({
   const problemLines = layoutSeven
     ? otherProblems(profile.monthlyReviews ?? [], month).map(otherProblemReportLine)
     : [];
+  // Layout 7 prints the headcount answered at setup beside the people
+  // mapped, from the model, which stores it so a locked version, its shared
+  // copy and the firm's archive print the same header; a model stored
+  // before Precog stored it reads the profile's, as it did then.
+  const setupHeadcount =
+    storedModel && storedModel.setupHeadcount === undefined
+      ? setupHeadcountOf(profile)
+      : data.setupHeadcount;
   const team = layoutSeven
-    ? teamSizeLine(profile, tpl.people, industry.teamLabel)
+    ? teamSizeLine(profile, tpl.people, industry.teamLabel, setupHeadcount)
     : layoutSix
       ? teamSizeLineSix(profile, tpl.people, industry.teamLabel)
       : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
@@ -957,28 +966,24 @@ function teamSizeLineSix(
 /**
  * Layout 7's team in the header. An own team is the count of active people on
  * the map, never read as the business's size, with the headcount the owner
- * gave at setup beside it when there is one; the sample keeps the size it was
- * built with.
+ * gave at setup beside it when there is one (`setup`, as the model stores
+ * it); the sample keeps the size it was built with.
  */
 function teamSizeLine(
-  profile: Parameters<typeof teamSource>[0] & {
-    staff: { teamSize: number };
-    onboardingFacts?: Pick<OnboardingFacts, "workforceBand" | "workforceCount">;
-  },
+  profile: Parameters<typeof teamSource>[0] & { staff: { teamSize: number } },
   people: readonly { active: boolean }[],
   teamLabel: string,
+  setup: SetupHeadcount | null,
 ): string {
   if (teamSource(profile) !== "own") return `${profile.staff.teamSize}-person ${teamLabel}`;
   const active = people.filter((p) => p.active).length;
   const mapped = active > 0 ? `${count(active, "person", "people")} mapped` : "nobody mapped yet";
-  const setup = setupHeadcount(profile.onboardingFacts);
-  return setup ? `${mapped} (setup: ${setup})` : mapped;
+  const headcount = setupHeadcountText(setup);
+  return headcount ? `${mapped} (setup: ${headcount})` : mapped;
 }
 
 /** The headcount answered at setup: the count when given, else the band ("7–30 people"). */
-function setupHeadcount(
-  facts: Pick<OnboardingFacts, "workforceBand" | "workforceCount"> | undefined,
-): string | null {
+function setupHeadcountText(facts: SetupHeadcount | null): string | null {
   if (facts?.workforceCount) return count(facts.workforceCount, "person", "people");
   if (!facts?.workforceBand) return null;
   return facts.workforceBand === "1"

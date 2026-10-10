@@ -35,6 +35,11 @@ export interface TemplateSource {
   controlsInPlace?: Readonly<Record<string, readonly string[]>> | null;
   /** The setup answers: a few of them record a control the owner already has. */
   setupAnswers?: SetupInPlaceAnswers | null;
+  /**
+   * The setup credits the owner has taken off, by id (`setupControlsInPlace`):
+   * the answer stands, but the control no longer counts it as in place.
+   */
+  setupControlsWithdrawn?: readonly string[] | null;
   /** Written procedures: a register item with one counts as written down. */
   procedures?: readonly Procedure[] | null;
 }
@@ -89,11 +94,16 @@ const MAX_IN_PLACE_TEXT = 200;
  * duty-separation control. Each is a
  * journal entry, so it carries a date and a review date, and removing the
  * entry removes the credit. Only entries logged under this industry count.
+ * The setup answers credit their controls the same way
+ * (`setupControlsInPlace`), until the owner takes a credit off
+ * (`withdrawn`, by id): a deletion sticks, as deleting the entry setup
+ * used to log did.
  */
 export function controlsInPlace(
   decisions: readonly DecisionLink[] | null | undefined,
   industry: IndustryId,
   setupAnswers?: SetupInPlaceAnswers | null,
+  withdrawn?: readonly string[] | null,
 ): Record<string, string[]> {
   const byControl: Record<string, string[]> = {};
   const add = (controlId: string, note: string | undefined) => {
@@ -109,8 +119,9 @@ export function controlsInPlace(
   }
   // The setup answers come last, where the entries setup used to log sat
   // (the oldest in the journal), so a control lists its texts in the same order.
-  for (const { controlId, text } of setupControlsInPlace(setupAnswers, industry)) {
-    add(controlId, text);
+  const off = new Set(withdrawn ?? []);
+  for (const { id, controlId, text } of setupControlsInPlace(setupAnswers, industry)) {
+    if (!off.has(id)) add(controlId, text);
   }
   return byControl;
 }
@@ -121,29 +132,55 @@ export interface SetupInPlaceAnswers {
   bankRec?: string;
 }
 
+/** A control a setup answer credits as in place, with the text it carries. */
+export interface SetupControlInPlace {
+  /** The credit's id, the answer and the control ("ownerReadsStatement:c-sod-ap"); what taking it off records. */
+  id: string;
+  controlId: string;
+  text: string;
+}
+
+/** The id of the credit a setup answer gives one control (`SetupControlInPlace.id`). */
+export function setupControlId(answer: keyof SetupInPlaceAnswers, controlId: string): string {
+  return `${answer}:${controlId}`;
+}
+
+/** Every credit the setup answers can give, by id: the ids a profile's withdrawals are read against. */
+export const SETUP_CONTROL_IDS: readonly string[] = [
+  setupControlId("bankRec", "c-sod-cash"),
+  setupControlId("ownerReadsStatement", "c-sod-ap"),
+  setupControlId("ownerReadsStatement", "c-sod-cash"),
+];
+
 /**
  * The controls the owner said at setup that they already have, each with the
  * text it carries on its control, newest first as the journal lists them.
  * They are facts the owner gave, not decisions about a finding, so they
- * credit the control without entering the Decisions log.
+ * credit the control without entering the Decisions log; the owner takes
+ * one off under Controls on Who controls what ("Take it off"), which
+ * records its id on the profile (`setupControlsWithdrawn`).
  */
 export function setupControlsInPlace(
   answers: SetupInPlaceAnswers | null | undefined,
   industry: IndustryId,
-): { controlId: string; text: string }[] {
+): SetupControlInPlace[] {
   if (!answers) return [];
-  const out: { controlId: string; text: string }[] = [];
+  const out: SetupControlInPlace[] = [];
+  const credit = (answer: keyof SetupInPlaceAnswers, controlId: string, text: string) =>
+    out.push({ id: setupControlId(answer, controlId), controlId, text });
   if (answers.bankRec === "outside") {
-    out.push({
-      controlId: "c-sod-cash",
-      text: "An outside bookkeeper or CPA reconciles the bank account each month (answered at setup).",
-    });
+    credit(
+      "bankRec",
+      "c-sod-cash",
+      "An outside bookkeeper or CPA reconciles the bank account each month (answered at setup).",
+    );
   }
   if (answers.ownerReadsStatement === "yes") {
     const text = industryHasOwner(industry)
       ? "The owner opens and reads the bank statement each month (answered at setup)."
       : "A board member opens and reads the bank statement each month (answered at setup).";
-    out.push({ controlId: "c-sod-ap", text }, { controlId: "c-sod-cash", text });
+    credit("ownerReadsStatement", "c-sod-ap", text);
+    credit("ownerReadsStatement", "c-sod-cash", text);
   }
   return out;
 }
@@ -189,7 +226,12 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
   );
   const inPlace =
     source.controlsInPlace ??
-    controlsInPlace(source.decisions, source.industry, source.setupAnswers);
+    controlsInPlace(
+      source.decisions,
+      source.industry,
+      source.setupAnswers,
+      source.setupControlsWithdrawn,
+    );
   return {
     ...resolved,
     // The sample's own array handed back as customPeople is still the sample

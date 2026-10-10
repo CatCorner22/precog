@@ -61,6 +61,7 @@ const READ_ONLY_ACTIONS: PracticeActions = {
   setDualRelease: noop,
   addDecision: noop,
   removeDecision: noop,
+  withdrawSetupControl: noop,
   reviewDecision: noop,
   replaceProfile: noop,
   setMonthlyReviews: noop,

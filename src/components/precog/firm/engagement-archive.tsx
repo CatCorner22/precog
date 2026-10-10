@@ -279,7 +279,10 @@ export function archiveProfileFor(
   frozen: ArchiveVersion["frozen"],
   profile: PracticeProfile,
 ): PracticeProfile {
-  return "model" in lockedFigures(frozen) ? shareReportProfile(profile) : profile;
+  const figures = lockedFigures(frozen);
+  return "model" in figures
+    ? shareReportProfile(profile, undefined, undefined, figures.layoutVersion, figures.model)
+    : profile;
 }
 
 /**

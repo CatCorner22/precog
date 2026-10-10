@@ -1,4 +1,5 @@
 import type { IndustryTemplate } from "../templates";
+import type { OnboardingFacts } from "../onboarding/decision-model";
 import type { PracticeProfile } from "../practice-profile";
 import { teamSource } from "../team-source";
 import { buildThreatAssessment } from "../threat-scoring";
@@ -262,6 +263,29 @@ export function buildControlReportModel({
     followThrough: continuityFollowThrough(profile.decisions, profile.industry),
     /** Precog's examples on an own business, which layout 7 marks as such. */
     examples: ownBusinessExamples(tpl, profile),
+    /** The headcount answered at setup, which layout 7's header prints beside the people mapped. */
+    setupHeadcount: setupHeadcountOf(profile),
+  };
+}
+
+/**
+ * The headcount the owner answered at setup: the band ("7-30"), and the
+ * count when they gave one. Layout 7's header prints it beside the people
+ * mapped ("2 people mapped (setup: 7–30 people)"). Stored with the model,
+ * so a locked version, its shared copy and the firm's archive, none of
+ * which carry the setup facts, print the same header. Null when setup asked
+ * none.
+ */
+export type SetupHeadcount = Pick<OnboardingFacts, "workforceBand" | "workforceCount">;
+
+export function setupHeadcountOf(
+  profile: Pick<PracticeProfile, "onboardingFacts">,
+): SetupHeadcount | null {
+  const facts = profile.onboardingFacts;
+  if (!facts?.workforceBand && !facts?.workforceCount) return null;
+  return {
+    ...(facts.workforceBand ? { workforceBand: facts.workforceBand } : {}),
+    ...(facts.workforceCount ? { workforceCount: facts.workforceCount } : {}),
   };
 }
 

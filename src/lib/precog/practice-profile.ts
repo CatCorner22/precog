@@ -12,7 +12,12 @@ import type {
   StaffComposition,
 } from "./types";
 import { getIndustryTemplate } from "./templates";
-import { CONTROL_IN_PLACE_TAB, resolveTemplate, setupControlsInPlace } from "./active-template";
+import {
+  CONTROL_IN_PLACE_TAB,
+  resolveTemplate,
+  SETUP_CONTROL_IDS,
+  setupControlsInPlace,
+} from "./active-template";
 import {
   DEFAULT_RISK_VARIABLES,
   mergeStaffIntoVariables,
@@ -87,6 +92,13 @@ export interface PracticeProfile {
   customRelations?: KnowledgeRelation[] | null;
   /** The answers the owner gave while setting up money flow and existing controls. */
   setupAnswers?: SetupAnswers;
+  /**
+   * The controls a setup answer credited as in place that the owner has
+   * since taken off, by credit id (active-template `setupControlsInPlace`):
+   * the answer stands, but the control no longer counts it. Absent until
+   * the owner takes one off.
+   */
+  setupControlsWithdrawn?: string[];
   /** Known leave, so continuity advice can warn ahead of it. */
   plannedAbsences?: PlannedAbsence[];
   /** People who have left, and whether the owner has confirmed their pay and logins are stopped. */
@@ -403,6 +415,7 @@ export function normalizeProfile(
   const customKnowledge = normalizeCustomKnowledge(knowledgeEntries(parsed.customKnowledge), today);
   const customRelations = relationEntries(parsed.customRelations);
   const setupAnswers = normalizeSetupAnswers(parsed.setupAnswers);
+  const setupControlsWithdrawn = normalizeSetupControlsWithdrawn(parsed.setupControlsWithdrawn);
   const onboardingFacts = normalizeOnboardingFacts(parsed.onboardingFacts);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
@@ -447,6 +460,7 @@ export function normalizeProfile(
     customKnowledge,
     customRelations,
     ...(setupAnswers ? { setupAnswers } : {}),
+    ...(setupControlsWithdrawn.length > 0 ? { setupControlsWithdrawn } : {}),
     plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
     leaverAccessChecks: normalizeLeaverAccessChecks(parsed.leaverAccessChecks),
     mapLayout: mapLayoutEntries(parsed.mapLayout),
@@ -699,6 +713,12 @@ const REVIEW_OUTCOMES = ["done", "still_open", "no_longer_relevant"] as const;
 const CONTINUITY_STEPS: readonly ContinuityStep[] = ["cover", "handoff", "document", "locate"];
 const COVERAGE_STATUSES: readonly CoverageStatus[] = ["uncovered", "single", "thin", "covered"];
 const DOCUMENTATION_STATES: readonly DocumentationState[] = ["none", "unlocated", "located"];
+
+/** The setup credits taken off, read from a stored copy: known ids only, each once, in order. */
+export function normalizeSetupControlsWithdrawn(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return SETUP_CONTROL_IDS.filter((id) => value.includes(id));
+}
 
 /**
  * The journal without the entries setup used to log for its own answers

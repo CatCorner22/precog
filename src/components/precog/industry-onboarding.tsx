@@ -524,8 +524,10 @@ export function IndustryOnboarding({
         const role = row.role.trim();
         if (!role || role === row.suggestedFor) return row;
         const owns = rowOwnsBusiness(row, selected);
+        // The earlier suggestion as it was made, under the line of business
+        // that made it, so a row still holding it re-ticks for the new title.
         const previous = row.suggestedFor
-          ? suggestedDuties(row.suggestedFor, owns, selected, answers)
+          ? suggestedDuties(row.suggestedFor, owns, row.suggestedIn ?? selected, answers)
           : [];
         const untouched = row.duties.length === 0 || stillSuggested(row.duties, previous, answers);
         // Duties the answers leave out are remembered, so changing the answer back ticks them.

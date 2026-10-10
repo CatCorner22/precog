@@ -311,7 +311,10 @@ describe("shareReportProfile", () => {
     expect(projected.monthlyReviews).toEqual(full.monthlyReviews);
   });
 
-  it("keeps the months a reader's clock can put a lock near midnight on the 1st in", () => {
+  it("sends a version without stored figures the month it prints on its UTC lock day alone", () => {
+    // Such a version recalculates under the current layout, whose month is
+    // the lock's UTC day's (control-report.tsx), whatever the reader's clock:
+    // a lock near midnight on the 1st no longer sends the month either side.
     const record = full.monthlyReviews![0];
     const reviews = ["2026-08", "2026-09", "2026-10", "2026-11"].map((period) => ({
       ...record,
@@ -322,8 +325,9 @@ describe("shareReportProfile", () => {
         (r) => r.period,
       );
     expect(at("2026-09-26T12:00:00.000Z")).toEqual(["2026-09"]);
-    expect(at("2026-10-01T03:00:00.000Z")).toEqual(["2026-09", "2026-10"]);
-    expect(at("2026-09-30T22:00:00.000Z")).toEqual(["2026-09", "2026-10"]);
+    expect(at("2026-10-01T03:00:00.000Z")).toEqual(["2026-09"]);
+    expect(at("2026-09-30T22:00:00.000Z")).toEqual(["2026-09"]);
+    expect(at("2026-10-11T00:30:00.000Z")).toEqual(["2026-10"]);
   });
 
   it("keeps what the report reads: the name, team, map, reviews, reading and stamps", () => {
@@ -376,6 +380,55 @@ describe("shareReportProfile", () => {
     expect(line(firmView)).not.toMatch(/reconcile/i);
     expect(line(firmView)).not.toBe("");
     expect(page(shareReportProfile(outside, locked.preparedAt))).toBe(firmView);
+  });
+
+  it("carries the setup headcount the header prints, and no other setup fact", () => {
+    const projected = shareReportProfile({
+      ...full,
+      onboardingFacts: {
+        schemaVersion: 1,
+        actor: "advisor",
+        workforceBand: "7-30",
+        workforceCount: 12,
+        locationBand: "2-5",
+        mappingScope: "one_team",
+        setupMethod: "roster_import",
+      },
+    });
+    expect(projected.onboardingFacts).toEqual({
+      schemaVersion: 1,
+      workforceBand: "7-30",
+      workforceCount: 12,
+    });
+    expect(shareReportProfile(full).onboardingFacts).toBeUndefined();
+  });
+
+  it("carries the setup headcount only where the page reads it from the profile", () => {
+    const sized: PracticeProfile = {
+      ...full,
+      onboardingFacts: {
+        schemaVersion: 1,
+        actor: "advisor",
+        workforceBand: "7-30",
+        workforceCount: 12,
+      },
+    };
+    const carried = { schemaVersion: 1, workforceBand: "7-30", workforceCount: 12 };
+    const stored = serializeReportModel(buildReportModelForProfile(sized, "2026-09-26"));
+    expect(stored.setupHeadcount).toMatchObject({ workforceBand: "7-30" });
+    const { setupHeadcount: _unstored, ...before } = stored;
+    const sent = (layoutVersion: number, model: Parameters<typeof shareReportProfile>[4]) =>
+      shareReportProfile(sized, locked.preparedAt, null, layoutVersion, model).onboardingFacts;
+    // Layouts 1 to 6 never print the headcount.
+    expect(sent(6, before)).toBeUndefined();
+    expect(sent(6, null)).toBeUndefined();
+    // A layout 7 or 8 version prints the headcount its model stores, a value or null.
+    expect(sent(7, stored)).toBeUndefined();
+    expect(sent(8, { ...stored, setupHeadcount: null })).toBeUndefined();
+    // Locked before Precog stored it: the page reads the profile's.
+    expect(sent(7, before)).toEqual(carried);
+    // No stored model: the page builds one from the profile.
+    expect(sent(8, null)).toEqual(carried);
   });
 
   it("carries each setup answer as its fixed choice, and nothing typed beside them", () => {
