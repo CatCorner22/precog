@@ -500,9 +500,13 @@ export function withoutSection(markdown: string, heading: string): string {
   return [...lines.slice(0, start), ...(end < 0 ? [] : lines.slice(end))].join("\n");
 }
 
-/** Who wrote the brief, in one line the owner can repeat to their accountant. */
+/**
+ * Who wrote the brief, in one line the owner can repeat to their accountant.
+ * Grok answering with an empty selection picked nothing, so the rules line stands.
+ */
 export function briefAuthorLine(
-  result: Pick<CoachResult, "modelStatus" | "model" | "ranker">,
+  result: Pick<CoachResult, "modelStatus" | "model" | "ranker"> &
+    Partial<Pick<CoachResult, "highlightIds">>,
 ): string {
   if (result.ranker === "huggingface") {
     return "A Hugging Face model ranked these moves. Precog's rules wrote every word.";
@@ -510,7 +514,8 @@ export function briefAuthorLine(
   if (result.ranker === "both") {
     return "A Hugging Face model and Grok agreed on these moves. Precog's rules wrote every word.";
   }
-  return result.modelStatus === "answered"
+  const pickedNone = result.highlightIds !== undefined && result.highlightIds.length === 0;
+  return result.modelStatus === "answered" && !pickedNone
     ? `Grok (${result.model ?? "model"}) picked the moves most relevant to your question. Precog's rules wrote every word.`
     : "Written by Precog's rules from your records. No AI wrote it.";
 }

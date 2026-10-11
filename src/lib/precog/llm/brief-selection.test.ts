@@ -50,6 +50,9 @@ describe("bounded selection protocol", () => {
       parseBriefSelection(JSON.stringify({ version: 1, highlightIds: [0] }), claims),
     ).toBeNull();
   });
+  it("accepts an empty selection when nothing is relevant", () => {
+    expect(parseBriefSelection('{"version":1,"highlightIds":[]}', claims)).toEqual([]);
+  });
   it("returns the selected statements in rules order and does not append the brief", () => {
     const selected = parseBriefSelection(
       '{"version":1,"highlightIds":["move-2","move-0"]}',

@@ -108,6 +108,19 @@ describe("briefAuthorLine", () => {
   });
 });
 
+describe("briefAuthorLine with an empty selection", () => {
+  it("does not say Grok picked moves when it picked none", () => {
+    expect(briefAuthorLine({ modelStatus: "answered", model: "grok-4.5", highlightIds: [] })).toBe(
+      "Written by Precog's rules from your records. No AI wrote it.",
+    );
+    expect(
+      briefAuthorLine({ modelStatus: "answered", model: "grok-4.5", highlightIds: ["move-0"] }),
+    ).toBe(
+      "Grok (grok-4.5) picked the moves most relevant to your question. Precog's rules wrote every word.",
+    );
+  });
+});
+
 describe("CoachResultView", () => {
   it("puts the brief first and the trace behind a closed disclosure", () => {
     const html = view(result());

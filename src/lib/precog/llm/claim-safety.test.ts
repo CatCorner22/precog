@@ -78,10 +78,15 @@ describe("model output cannot reassign a real number to an invented claim", () =
     { version: 1, highlightIds: ["move-0", "move-0"] },
     { version: 1, highlightIds: ["move-0"], markdown: "Guaranteed $104,000 recovery" },
     { version: 2, highlightIds: ["move-0"] },
-    { version: 1, highlightIds: [] },
   ])("rejects unknown, duplicate or extended plans: %j", async (plan) => {
     const result = await answer(JSON.stringify(plan));
     expect(result.modelStatus).toBe("rejected");
+    expect(result.brief).toEqual(local.brief);
+  });
+  it("accepts an empty selection as an answer that marks nothing", async () => {
+    const result = await answer(JSON.stringify({ version: 1, highlightIds: [] }));
+    expect(result.modelStatus).toBe("answered");
+    expect(result.highlightIds).toEqual([]);
     expect(result.brief).toEqual(local.brief);
   });
   it("does not mutate the local brief", async () => {
