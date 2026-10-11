@@ -1,6 +1,11 @@
 import { runGrokAgentLoop, type ModelOutcome, type ModelStatus } from "../llm/agent-loop";
 import { briefClaims } from "../llm/brief-selection";
-import { chooseHighlightIds, type RankerName, rankClaimsWithHuggingFace } from "../llm/hf-rank";
+import {
+  chooseHighlightIds,
+  HF_EMBED_MODEL,
+  type RankerName,
+  rankClaimsWithHuggingFace,
+} from "../llm/hf-rank";
 import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type {
@@ -237,29 +242,47 @@ export async function selectPioneerHighlights(
   try {
     const local = localBrief(question, ctx, data.profile);
     const claims = briefClaims(local.brief);
-    const hf = (await hfMayRank(access, grok))
-      ? await rankClaimsWithHuggingFace(question, claims, fetch, { chat: grok !== "allowed" })
-      : null;
-    const result =
+    // The Hugging Face unit is spent first; then both models run at once, and
+    // Grok's unit is spent inside callModel before Grok is called.
+    const hfAllowed = await hfMayRank(access, grok);
+    const [hf, result] = await Promise.all([
+      hfAllowed
+        ? rankClaimsWithHuggingFace(question, claims, fetch, { chat: grok !== "allowed" })
+        : null,
       grok === "allowed"
-        ? await runGrokAgentLoop(local, access)
-        : { ...local, modelStatus: "not-asked" as const, highlightIds: [] as readonly string[] };
+        ? runGrokAgentLoop(local, access)
+        : { ...local, modelStatus: "not-asked" as const, highlightIds: [] as readonly string[] },
+    ]);
     const grokIds = result.highlightIds ?? [];
-    const chosen = chooseHighlightIds({
-      claimIds: claims.map((claim) => claim.id),
-      embedScores: hf?.scores ?? null,
-      llmIds: grokIds.length > 0 ? grokIds : (hf?.llmIds ?? null),
-    });
+    // An empty selection is Grok's answer that nothing is relevant: nothing is marked.
+    const grokFoundNone = result.modelStatus === "answered" && grokIds.length === 0;
+    const chosen = grokFoundNone
+      ? null
+      : chooseHighlightIds({
+          claimIds: claims.map((claim) => claim.id),
+          embedScores: hf?.scores ?? null,
+          llmIds: grokIds.length > 0 ? grokIds : (hf?.llmIds ?? null),
+        });
     const ranker = chosen
       ? rankerFor(chosen.source, grokIds.length > 0, Boolean(hf?.scores))
       : undefined;
-    const modelStatus: ModelStatus = chosen && ranker ? "answered" : result.modelStatus;
+    // Ids Grok picked that Precog's checks then dropped are a rejected reply, not an answer.
+    const modelStatus: ModelStatus = chosen
+      ? "answered"
+      : grokIds.length > 0
+        ? "rejected"
+        : result.modelStatus;
     return {
       ok: true,
       contextFingerprint: result.contextFingerprint,
       highlightIds: chosen?.ids ?? [],
       modelStatus,
-      model: ranker === "huggingface" ? "sentence-transformers/all-MiniLM-L6-v2" : result.model,
+      model:
+        ranker === "huggingface"
+          ? HF_EMBED_MODEL
+          : modelStatus === "answered"
+            ? result.model
+            : undefined,
       ranker,
       source: result.source,
       warning: modelWarning(grok, { ...result, modelStatus }),

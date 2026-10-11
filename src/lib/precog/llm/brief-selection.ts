@@ -22,7 +22,10 @@ export function briefClaims(brief: StructuredBrief): BriefClaim[] {
   return claims.filter((claim) => claim.text.length <= 6_000);
 }
 
-/** Strict protocol: unknown ids, duplicate ids, free prose and extra fields fail closed. */
+/**
+ * Strict protocol: unknown ids, duplicate ids, free prose and extra fields
+ * fail closed. An empty list is a valid answer: nothing is relevant.
+ */
 export function parseBriefSelection(text: string, claims: readonly BriefClaim[]): string[] | null {
   if (text.length > 4_096) return null;
   let value: unknown;
@@ -36,7 +39,7 @@ export function parseBriefSelection(text: string, claims: readonly BriefClaim[])
   if (Object.keys(record).sort().join(",") !== "highlightIds,version") return null;
   if (record.version !== 1 || !Array.isArray(record.highlightIds)) return null;
   const ids: unknown[] = record.highlightIds;
-  if (ids.length < 1 || ids.length > 3 || new Set(ids).size !== ids.length) return null;
+  if (ids.length > 3 || new Set(ids).size !== ids.length) return null;
   const known = new Set(claims.map((claim) => claim.id));
   if (!ids.every((id): id is string => typeof id === "string" && known.has(id))) return null;
   return ids;
