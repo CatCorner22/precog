@@ -662,7 +662,7 @@ export function normalizeRiskVariables(value: unknown, base: RiskVariableState):
 }
 
 /** Stored staff figures are untrusted input: each field is typed and bounded, or falls back. */
-function normalizeStaff(value: unknown, base: StaffComposition): StaffComposition {
+export function normalizeStaff(value: unknown, base: StaffComposition): StaffComposition {
   const input = asRecord(value);
   return {
     teamSize: Math.round(
@@ -890,7 +890,8 @@ function optionalText(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-function storedDate(value: unknown): value is string {
+/** A stored timestamp: a calendar day, alone or followed by a time ("2026-09-01T00:00:00.000Z"). */
+export function storedDate(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0 || value.length > 40) return false;
   const day = value.slice(0, 10);
   return (
@@ -900,7 +901,8 @@ function storedDate(value: unknown): value is string {
   );
 }
 
-function calendarDate(value: unknown): value is string {
+/** A calendar day ("2026-11-01"), the shape a journal entry's review date takes. */
+export function calendarDate(value: unknown): value is string {
   return typeof value === "string" && isCalendarDate(value);
 }
 

@@ -5,10 +5,13 @@ import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
 import { normalizeSetupAnswers } from "../onboarding/setup-answers";
 import {
+  calendarDate,
   DECISION_KIND_LABEL,
   defaultProfile,
   normalizePlannedAbsences,
   normalizeRiskVariables,
+  normalizeStaff,
+  storedDate,
   type DecisionEntry,
   type DecisionKind,
   type PlannedAbsence,
@@ -68,25 +71,27 @@ function isDecisionKind(value: unknown): value is DecisionKind {
 
 /**
  * Rebuild a Journal entry from an untrusted payload, keeping only the fields
- * Pioneer reads and only when they have the expected shape. Entries without a
- * usable id, date or kind are dropped; snapshots and review history are not
- * needed server-side and are not carried.
+ * Pioneer reads and only when they have the expected shape. Dates follow the
+ * stored journal's rule (`normalizeDecisions`): `createdAt` is a stored
+ * timestamp and `reviewBy` a calendar day, so "1st Nov" never compares as
+ * text. Entries without a usable id, date or kind are dropped; snapshots and
+ * review history are not needed server-side and are not carried.
  */
 function sanitizeDecision(value: unknown): DecisionEntry | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as Record<string, unknown>;
-  if (typeof raw.id !== "string" || typeof raw.createdAt !== "string") return null;
+  if (typeof raw.id !== "string" || !storedDate(raw.createdAt)) return null;
   if (!isDecisionKind(raw.kind)) return null;
   const status = raw.status === "open" || raw.status === "closed" ? raw.status : undefined;
   const linkedStep = CONTINUITY_STEPS.find((s) => s === raw.linkedStep);
   const linkedIndustry = isIndustryId(raw.linkedIndustry) ? raw.linkedIndustry : undefined;
   return {
     id: raw.id.slice(0, MAX_DECISION_TEXT),
-    createdAt: raw.createdAt.slice(0, 40),
+    createdAt: raw.createdAt,
     subject: optionalString(raw.subject, MAX_DECISION_TEXT) ?? "",
     kind: raw.kind,
     note: optionalString(raw.note, MAX_DECISION_TEXT) ?? "",
-    reviewBy: optionalString(raw.reviewBy, 40),
+    reviewBy: calendarDate(raw.reviewBy) ? raw.reviewBy : undefined,
     linkedTab: optionalString(raw.linkedTab),
     linkedId: optionalString(raw.linkedId),
     linkedIndustry,
@@ -125,7 +130,9 @@ export function pioneerProfileFrom(
 ): PracticeProfile {
   const industry: IndustryId = isIndustryId(input.industry) ? input.industry : "general";
   const base = defaultProfile(industry);
-  const staff: StaffComposition = { ...base.staff, ...(input.staff ?? {}) };
+  // Bounded as the stored profile is, so a null, negative or overflowing
+  // figure falls back or clamps before it reaches scoring.
+  const staff: StaffComposition = normalizeStaff(input.staff, base.staff);
   const customProcesses = capList(input.customProcesses);
   const customPeople = capList(input.customPeople);
   const customKnowledge = capList(input.customKnowledge);
