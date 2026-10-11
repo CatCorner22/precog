@@ -18,10 +18,12 @@ export const LLM_LIMITS = {
   /**
    * Signed-out calls to an expensive path (Pioneer runs its whole local
    * analysis on the server, over half a second of CPU for a large map): per
-   * address, and for every signed-out caller together on this instance.
+   * address, and for every signed-out caller together on this instance. One
+   * question is two such calls (the rules brief, then the highlights), so an
+   * address gets four questions a minute and the instance twenty.
    */
-  anonymousHeavyPerIp: { limit: 4, windowMs: 60_000 },
-  anonymousHeavyAll: { limit: 20, windowMs: 60_000 },
+  anonymousHeavyPerIp: { limit: 8, windowMs: 60_000 },
+  anonymousHeavyAll: { limit: 40, windowMs: 60_000 },
 } as const;
 
 export class SlidingWindowLimiter {
@@ -35,6 +37,15 @@ export class SlidingWindowLimiter {
 
   /** Records a hit when allowed. */
   take(key: string): LimitDecision {
+    return this.decide(key, true);
+  }
+
+  /** The decision `take` would make, without recording a hit. */
+  check(key: string): LimitDecision {
+    return this.decide(key, false);
+  }
+
+  private decide(key: string, record: boolean): LimitDecision {
     const current = this.now();
     // Other keys are swept at most once per window, so one busy limiter does
     // not walk every address it has seen on every request.
@@ -50,8 +61,9 @@ export class SlidingWindowLimiter {
       };
     }
 
-    active.push(current);
-    this.hits.set(key, active);
+    if (record) active.push(current);
+    if (active.length) this.hits.set(key, active);
+    else this.hits.delete(key);
     return { allowed: true, retryAfterMs: 0 };
   }
 
@@ -87,9 +99,13 @@ export function createAnonymousHeavyGate(
 ): (ip: string) => LimitDecision {
   const perIp = new SlidingWindowLimiter(rules.perIp, now);
   const all = new SlidingWindowLimiter(rules.all, now);
+  // Each bucket is spent only when both allow the call, so a refusal by
+  // either one leaves the other unchanged.
   return (ip) => {
-    const own = perIp.take(ip);
+    const own = perIp.check(ip);
     if (!own.allowed) return own;
-    return all.take("anonymous");
+    const shared = all.take("anonymous");
+    if (!shared.allowed) return shared;
+    return perIp.take(ip);
   };
 }

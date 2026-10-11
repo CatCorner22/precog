@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { heavyLlmMiddleware, localLlmMiddleware } from "../llm/middleware";
+import { heavyLlmMiddleware } from "../llm/middleware";
 import {
-  answerPioneer,
   answerPioneerRules,
   readPioneerRequest,
   selectPioneerHighlights,
@@ -9,17 +8,12 @@ import {
 } from "./pioneer-answer";
 
 /**
- * The coach's server function: the heavy allowance decides who may run it and
- * whether the model may write the brief; pioneer-answer.ts does the rest.
+ * Rules brief, with no model call, so it spends no daily model unit. It runs
+ * the whole local analysis, so it takes the heavy allowance: signed-out
+ * callers the small per-address gate, signed-in callers the per-user limit.
  */
-export const runPioneerCoach = createServerFn({ method: "POST" })
-  .middleware([heavyLlmMiddleware])
-  .validator((input: PioneerCoachInput) => readPioneerRequest(input))
-  .handler(({ data, context }) => answerPioneer(data, context.llm));
-
-/** Rules brief, with no model call. It does not spend a model slot; ranking does. */
 export const runPioneerRules = createServerFn({ method: "POST" })
-  .middleware([localLlmMiddleware])
+  .middleware([heavyLlmMiddleware])
   .validator((input: PioneerCoachInput) => readPioneerRequest(input))
   .handler(({ data }) => answerPioneerRules(data));
 

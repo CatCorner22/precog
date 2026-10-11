@@ -79,6 +79,30 @@ describe("createAnonymousHeavyGate", () => {
     expect(gate("ip:4").allowed).toBe(false);
   });
 
+  it("leaves the address bucket unchanged when the shared ceiling refuses", () => {
+    let now = 0;
+    const gate = createAnonymousHeavyGate(
+      { perIp: { limit: 1, windowMs: 10_000 }, all: { limit: 1, windowMs: 1_000 } },
+      () => now,
+    );
+    expect(gate("ip:a").allowed).toBe(true);
+    expect(gate("ip:b").allowed).toBe(false);
+    // The shared bucket frees up; ip:b's own allowance was never spent.
+    now = 1_001;
+    expect(gate("ip:b").allowed).toBe(true);
+  });
+
+  it("leaves the shared bucket unchanged when the address limit refuses", () => {
+    const gate = createAnonymousHeavyGate(
+      { perIp: { limit: 1, windowMs: 1_000 }, all: { limit: 2, windowMs: 1_000 } },
+      () => 0,
+    );
+    expect(gate("ip:a").allowed).toBe(true);
+    expect(gate("ip:a").allowed).toBe(false);
+    expect(gate("ip:a").allowed).toBe(false);
+    expect(gate("ip:b").allowed).toBe(true);
+  });
+
   it("frees up once the window passes", () => {
     let now = 0;
     const gate = createAnonymousHeavyGate(
@@ -92,6 +116,11 @@ describe("createAnonymousHeavyGate", () => {
   });
 
   it("is much tighter than the shared per-address model limit", () => {
-    expect(LLM_LIMITS.anonymousHeavyPerIp.limit).toBeLessThan(LLM_LIMITS.perIp.limit / 4);
+    expect(LLM_LIMITS.anonymousHeavyPerIp.limit).toBeLessThan(LLM_LIMITS.perIp.limit / 3);
+  });
+
+  it("fits four signed-out questions a minute, each a rules call and a highlights call", () => {
+    expect(LLM_LIMITS.anonymousHeavyPerIp.limit).toBe(4 * 2);
+    expect(LLM_LIMITS.anonymousHeavyAll.limit).toBe(20 * 2);
   });
 });
