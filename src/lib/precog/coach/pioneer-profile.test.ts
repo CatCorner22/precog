@@ -323,7 +323,8 @@ describe("pioneerProfileFrom bounds untrusted request fields", () => {
         teamSize: null,
         soleOwnerKnowledgeCount: -10,
         avgTenureYears: Infinity,
-        segregationScore: 1e309,
+        // 1e309 as a request parses it: past the largest double, so Infinity.
+        segregationScore: Number("1e309"),
       },
     });
     expect(p.staff.teamSize).toBe(base.teamSize);
