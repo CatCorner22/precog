@@ -1027,7 +1027,6 @@ function ownFirstBrief(
   const warnings =
     sourceSection(BRIEF_SECTION.warnings)?.body.filter((line) => line.trim()) ??
     brief.chickenLittleWarnings.map((warning) => `- ${warning}`);
-  const watchedConditions = sourceSection("Watched conditions")?.body.filter((line) => line.trim());
   const answer =
     scenarios.length > 0
       ? [
@@ -1051,7 +1050,7 @@ function ownFirstBrief(
     { heading: BRIEF_SECTION.moves, body: [...decisions.map(renderDecision), ""] },
     {
       heading: BRIEF_SECTION.warnings,
-      body: [...warnings, ...(watchedConditions ?? []), ""],
+      body: [...warnings, ""],
     },
   ];
   const risks = (

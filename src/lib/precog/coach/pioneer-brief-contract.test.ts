@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { runPrecogScenario } from "../engine";
@@ -218,5 +219,16 @@ describe("Pioneer brief contract", () => {
             line.includes(scenario?.title ?? "") && line.includes("not counted in your totals"),
         ),
     ).toBe(true);
+  });
+});
+
+describe("removed brief headings", () => {
+  it("are never read back from the source brief", () => {
+    // A heading the brief no longer writes cannot be found again, so a lookup
+    // for one is dead code that reads as if the section still existed.
+    const source = readFileSync(new URL("./local-brief.ts", import.meta.url), "utf8");
+    for (const heading of REMOVED_HEADINGS) {
+      expect(source).not.toContain(`sourceSection(${JSON.stringify(heading)})`);
+    }
   });
 });
