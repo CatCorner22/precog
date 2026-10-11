@@ -161,6 +161,27 @@ describe("local advisor brief", () => {
     expect(brief.markdown).not.toMatch(/conflict to fix first|\(fix first\)/);
   });
 
+  it("names a register owner only when the question names that person", () => {
+    // The dental front desk lead renamed "Will Blake": "Will" is also an
+    // ordinary English word that often opens a question.
+    const base = defaultProfile("dental");
+    const tpl = resolveTemplate(base);
+    const profile = pioneerProfileFrom({
+      ...base,
+      customPeople: tpl.people.map((p) =>
+        p.name === "Jordan Blake" ? { ...p, name: "Will Blake" } : p,
+      ),
+    } as never);
+    const about = (question: string) => localBrief(question, { profile, question }, profile).brief;
+    const named = /If Will Blake \(Front Desk Lead\) is away or leaves/;
+    expect(about("Will the deposit still get made if someone leaves?").markdown).not.toMatch(named);
+    expect(about("What happens if someone will be away next week?").markdown).not.toMatch(named);
+    expect(about("Quick one. Will payroll run if someone leaves?").markdown).not.toMatch(named);
+    expect(about("What breaks if Will leaves?").markdown).toMatch(named);
+    expect(about("Will Blake is leaving. What breaks?").markdown).toMatch(named);
+    expect(about("If will blake leaves, what breaks?").markdown).toMatch(named);
+  });
+
   it("answers a question about someone leaving with what stops, not the generic brief", () => {
     const sample = pioneerProfileFrom(defaultProfile("dental") as never);
     const leaves = "If my front desk lead leaves, what breaks first?";

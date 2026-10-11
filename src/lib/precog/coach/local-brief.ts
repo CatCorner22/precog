@@ -596,8 +596,8 @@ function absenceAnswer(question: string, toolResults: ToolResult[]): string[] | 
   }
   const soleRows = spof.rows.filter((r) => r.owners.length === 1);
   const owners = [...new Map(soleRows.map((r) => [r.owners[0].name, r.owners[0]])).values()];
-  const named = owners.find((o) =>
-    [o.name, firstName(o.name), o.role ?? ""].some((words) => mentions(question, words)),
+  const named = owners.find(
+    (o) => namesPerson(question, o.name) || mentions(question, o.role ?? ""),
   );
   if (named) {
     const theirs = soleRows.filter((r) => r.owners[0].name === named.name);
@@ -740,6 +740,56 @@ function upcomingAbsenceAnswer(
 }
 
 /** Whether the question names these words as whole words ("Jordan", "front desk lead"). */
+/**
+ * First names that are also everyday English words, so a question can use
+ * the word without meaning the person ("Will the deposit still get made?").
+ */
+const COMMON_WORD_NAMES = new Set([
+  "april",
+  "art",
+  "august",
+  "bill",
+  "chase",
+  "dawn",
+  "drew",
+  "faith",
+  "frank",
+  "grace",
+  "guy",
+  "hope",
+  "jack",
+  "joy",
+  "june",
+  "mark",
+  "max",
+  "may",
+  "miles",
+  "pat",
+  "ray",
+  "rich",
+  "rose",
+  "sue",
+  "summer",
+  "will",
+]);
+
+/**
+ * Whether the question names this person: the full name anywhere, or the
+ * first name alone. A first name that is also an everyday word counts only
+ * written with its capital and not as the first word of a sentence, where
+ * every word takes a capital: "What breaks if Will leaves?" names Will;
+ * "Will the deposit still get made?" does not.
+ */
+function namesPerson(question: string, name: string): boolean {
+  if (mentions(question, name)) return true;
+  const given = firstName(name);
+  if (!COMMON_WORD_NAMES.has(given.toLowerCase())) return mentions(question, given);
+  const pattern = given.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [...question.matchAll(new RegExp(`\\b${pattern}\\b`, "g"))].some(
+    (match) => !/(^|[.?!:])\s*["'(]*$/.test(question.slice(0, match.index)),
+  );
+}
+
 function mentions(question: string, words: string): boolean {
   const trimmed = words.trim();
   if (trimmed.length < 2) return false;
