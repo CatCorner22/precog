@@ -96,6 +96,8 @@ export function planTools(question: string): ToolName[] {
 interface ToolInputs extends ScenarioToolInput, ContinuityToolInput {
   question?: string;
   sodReport(): ReturnType<typeof detectSodConflicts>;
+  portfolio(): ReturnType<typeof portfolioSummary>;
+  leading(): ReturnType<typeof scoreLeadingIndicators>;
 }
 
 interface ToolSpec {
@@ -261,6 +263,13 @@ function toolInputs(ctx: ToolContext): ToolInputs {
     sodReport: once(() =>
       detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, profile.dualRelease)),
     ),
+    portfolio: once(() =>
+      portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, {
+        confirmedScenarioIds: confirmed,
+        riskVariables: riskVars,
+      }),
+    ),
+    leading: once(() => scoreLeadingIndicators(tpl, staff, riskVars, confirmed)),
   };
 }
 
@@ -331,8 +340,8 @@ function cosoAssessment({ profile, tpl, staff, riskVars, scope }: ToolInputs): T
   };
 }
 
-function residualPortfolio({ tpl, staff, scope }: ToolInputs): ToolOutput {
-  const p = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, scope);
+function residualPortfolio({ portfolio }: ToolInputs): ToolOutput {
+  const p = portfolio();
   const leftOut = [
     p.knowledgeAssessed ? "" : "register items (not assessed yet)",
     p.starterScenariosLeftOut.length
@@ -564,8 +573,8 @@ function caseEvidence({ sodReport, profile }: ToolInputs): ToolOutput {
   };
 }
 
-function leadingIndicators({ tpl, staff, riskVars, scope }: ToolInputs): ToolOutput {
-  const report = scoreLeadingIndicators(tpl, staff, riskVars, scope.confirmedScenarioIds);
+function leadingIndicators({ leading }: ToolInputs): ToolOutput {
+  const report = leading();
   const breached = report.indicators.filter((i) => i.status === "breach").length;
   const watch = report.indicators.filter((i) => i.status === "watch").length;
   return {
@@ -606,8 +615,14 @@ function advancedReasoning({ tpl, staff, riskVars, scope }: ToolInputs): ToolOut
   };
 }
 
-function metaAnalysis({ profile }: ToolInputs): ToolOutput {
-  const report = runMetaAnalysis(profile);
+function metaAnalysis({ profile, tpl, sodReport, portfolio, leading }: ToolInputs): ToolOutput {
+  // The request's own figures, so the inventory does not compute them again.
+  const report = runMetaAnalysis(profile, {
+    tpl,
+    sod: sodReport(),
+    portfolio: portfolio(),
+    leading: leading(),
+  });
   const top = (classification: string) =>
     report.items
       .filter((i) => i.classification === classification)

@@ -88,9 +88,24 @@ interface RealtimeCapability {
   dependency: string;
 }
 
-export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
+/**
+ * The figures the inventory reads that a caller may already hold for this
+ * profile, computed exactly as `businessFacts` computes them. A coach request
+ * passes its own, so each is computed once per request.
+ */
+export interface MetaAnalysisKnown {
+  tpl: ReturnType<typeof resolveTemplate>;
+  sod: ReturnType<typeof detectSodConflicts>;
+  portfolio: ReturnType<typeof portfolioSummary>;
+  leading: ReturnType<typeof scoreLeadingIndicators>;
+}
+
+export function runMetaAnalysis(
+  profile: PracticeProfile,
+  known: Partial<MetaAnalysisKnown> = {},
+): MetaAnalysisReport {
   const words = INVENTORY_WORDS[profile.industry];
-  const facts = businessFacts(profile);
+  const facts = businessFacts(profile, known);
   const items = sortItems(inventoryItems(profile, facts, words));
   const realtimeCapabilities = realtimeCapabilitiesFor(words);
   const byClass = (c: EpistemicClass) => items.filter((i) => i.classification === c);
@@ -141,21 +156,20 @@ interface BusinessFacts {
   waives: number;
 }
 
-function businessFacts(profile: PracticeProfile): BusinessFacts {
-  const tpl = resolveTemplate(profile);
+function businessFacts(profile: PracticeProfile, known: Partial<MetaAnalysisKnown>): BusinessFacts {
+  const tpl = known.tpl ?? resolveTemplate(profile);
   const scope = residualScope(profile);
-  const leading = scoreLeadingIndicators(
-    tpl,
-    profile.staff,
-    profile.riskVariables,
-    scope.confirmedScenarioIds,
-  );
+  const leading =
+    known.leading ??
+    scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables, scope.confirmedScenarioIds);
   return {
     profile,
     tpl,
     decisions: profile.decisions ?? [],
-    sod: detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
-    portfolio: portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, scope),
+    sod:
+      known.sod ??
+      detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
+    portfolio: known.portfolio ?? portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, scope),
     breachedIndicators: leading.indicators.filter((i) => i.status === "breach").length,
     waives: (profile.dualRelease.exceptions ?? []).filter(
       (e) => e.enabled && e.action === "waive_dual",
