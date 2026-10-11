@@ -447,11 +447,18 @@ function processRecords({ profile, tpl }: ToolInputs): ToolOutput {
 }
 
 /** The team's own duty conflicts, by person, scored the way Who controls what scores them; owner-held pairs are counted apart. */
-function sodConflicts({ sodReport }: ToolInputs): ToolOutput {
+function sodConflicts({ sodReport, profile }: ToolInputs): ToolOutput {
   const report = sodReport();
   // Every finding but the owner's own, open or not; each row says whether
-  // dual release narrows it and whether the owner accepted the risk.
+  // dual release narrows it, whether the owner accepted the risk, and whether
+  // it is open by the rule every screen counts with (sod/open-findings).
   const findings = report.conflicts.filter((c) => !c.ownerHeld);
+  const open = new Set(
+    openFindings(
+      report.conflicts,
+      partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+    ),
+  );
   return {
     ok: true,
     summary: `${report.summary.critical} critical, ${report.summary.high} high open duty conflict(s) across ${report.summary.peopleWithConflicts} people; ${report.summary.ownerHeld} held by the owner; segregation health ${
@@ -470,6 +477,7 @@ function sodConflicts({ sodReport }: ToolInputs): ToolOutput {
       controlsInPlace: c.controlsInPlace,
       residualRiskAccepted: c.residualRiskAccepted,
       dualReleaseMitigated: c.dualReleaseMitigated,
+      open: open.has(c),
     })),
   };
 }
