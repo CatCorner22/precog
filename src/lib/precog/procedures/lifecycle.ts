@@ -33,6 +33,27 @@ export function isWrittenProcedure(p: Pick<Procedure, "steps">): boolean {
   return p.steps.some((s) => s.text.trim().length > 0);
 }
 
+/**
+ * Written for a stand-in to follow: steps that say something and at least one
+ * named stand-in. The day a procedure first is starts its stand-ins' 90 days
+ * to prove it (see writtenAt).
+ */
+export function isWrittenForStandIn(p: Pick<Procedure, "steps" | "backupPersonIds">): boolean {
+  return isWrittenProcedure(p) && p.backupPersonIds.length > 0;
+}
+
+/**
+ * `next` with the day it was first written for a stand-in: kept once set,
+ * set to `today` when this save makes it so, and left absent on a procedure
+ * that already was before Precog kept the day (it counts from createdAt).
+ */
+function withWrittenAt(prev: Procedure | null, next: Procedure, today: string): Procedure {
+  const writtenAt = next.writtenAt ?? prev?.writtenAt;
+  if (writtenAt) return next.writtenAt === writtenAt ? next : { ...next, writtenAt };
+  if (!isWrittenForStandIn(next) || (prev && isWrittenForStandIn(prev))) return next;
+  return { ...next, writtenAt: today };
+}
+
 /** The day the current verification runs out, or null when it is not verified. */
 export function reviewByDate(p: Pick<Procedure, "verifiedAt" | "reviewEveryDays">): string | null {
   return p.verifiedAt ? shiftDay(p.verifiedAt, p.reviewEveryDays) : null;
@@ -43,21 +64,25 @@ export function newProcedure(
   fields: Pick<Procedure, "industry" | "title"> & Partial<Procedure>,
   today: string,
 ): Procedure {
-  return {
-    prerequisites: [],
-    steps: [],
-    knowledgeIds: [],
-    processIds: [],
-    backupPersonIds: [],
-    reviewEveryDays: DEFAULT_REVIEW_DAYS,
-    version: 1,
-    changelog: [],
-    proofs: [],
-    ...fields,
-    id: fields.id ?? uid("proc"),
-    createdAt: today,
-    updatedAt: today,
-  };
+  return withWrittenAt(
+    null,
+    {
+      prerequisites: [],
+      steps: [],
+      knowledgeIds: [],
+      processIds: [],
+      backupPersonIds: [],
+      reviewEveryDays: DEFAULT_REVIEW_DAYS,
+      version: 1,
+      changelog: [],
+      proofs: [],
+      ...fields,
+      id: fields.id ?? uid("proc"),
+      createdAt: today,
+      updatedAt: today,
+    },
+    today,
+  );
 }
 
 /** A new, empty step. */
@@ -78,7 +103,7 @@ export function withProcedureEdit(
   next: Procedure,
   today: string,
 ): Procedure {
-  const saved = { ...next, updatedAt: today };
+  const saved = withWrittenAt(prev, { ...next, updatedAt: today }, today);
   if (!prev) return saved;
   const sameContent = contentKey(prev) === contentKey(next);
   if (sameContent && prev.verifiedAt && next.reviewEveryDays > prev.reviewEveryDays) {
@@ -213,15 +238,16 @@ export function verificationsAsHeld(
 
 /**
  * The procedures of a business saved as a new copy, without verifications
- * another account recorded: the account that saves the copy would be
- * recording them as new, under its own name, which the server refuses.
+ * another account recorded or none did (stored before Precog stamped them):
+ * the account that saves the copy would be recording them as new, which the
+ * server refuses.
  */
 export function withoutOthersVerifications(
   procedures: readonly Procedure[],
   accountId: string,
 ): Procedure[] {
   return procedures.map((p) =>
-    p.verifiedByAccountId && p.verifiedByAccountId !== accountId ? withoutVerification(p) : p,
+    p.verifiedAt && p.verifiedByAccountId !== accountId ? withoutVerification(p) : p,
   );
 }
 

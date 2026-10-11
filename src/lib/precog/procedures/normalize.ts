@@ -143,6 +143,10 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
   const verifiedBy = verifiedAt ? readText(raw.verifiedBy, 120) : "";
   const verifiedByAccountId = verifiedAt ? readText(raw.verifiedByAccountId, 120) : "";
   const verifiedByAccountName = verifiedByAccountId ? readText(raw.verifiedByAccountName, 120) : "";
+  const duties = dutyIds(raw.dutyIds);
+  // Absent on procedures stored before Precog kept it; they read as written when started.
+  const writtenOn = day(raw.writtenAt, today);
+  const writtenAt = writtenOn && writtenOn < createdAt ? createdAt : writtenOn;
   const optional = {
     libraryId: readText(raw.libraryId, 60),
     fallback: readText(raw.fallback, PROCEDURE_LIMITS.fallback),
@@ -177,7 +181,7 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
     steps: normalizeSteps(raw.steps),
     knowledgeIds: ids(raw.knowledgeIds, PROCEDURE_LIMITS.links),
     processIds: ids(raw.processIds, PROCEDURE_LIMITS.links),
-    ...(dutyIds(raw.dutyIds).length ? { dutyIds: dutyIds(raw.dutyIds) } : {}),
+    ...(duties.length ? { dutyIds: duties } : {}),
     backupPersonIds: ids(raw.backupPersonIds, PROCEDURE_LIMITS.backups).filter(
       (personId) => personId !== optional.ownerPersonId,
     ),
@@ -192,6 +196,7 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
     changelog: normalizeChangelog(raw.changelog, today),
     proofs: normalizeProofs(raw.proofs, today),
     createdAt,
+    ...(writtenAt ? { writtenAt } : {}),
     updatedAt: updatedAt < createdAt ? createdAt : updatedAt,
   };
 }

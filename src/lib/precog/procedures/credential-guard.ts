@@ -45,6 +45,14 @@ const SSN = /\b\d{3}[- ]\d{2}[- ]\d{4}\b/g;
 const CARD_CANDIDATE = /\b(?:\d[ -]?){13,19}\b/g;
 // A long run of letters and digits mixed, as API keys and recovery codes are.
 const TOKEN = /\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{24,}\b/g;
+// Long runs of the same shape that name a thing rather than unlock one: a
+// UUID (a record id in a portal), and a run straight after "/" (a dated or
+// slugged URL path, for example "/2026-10-10-month-end-close-notes").
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isTokenLike(text: string, m: RegExpMatchArray): boolean {
+  const at = m.index ?? 0;
+  return !UUID.test(m[0]) && text[at - 1] !== "/";
+}
 
 /** Everything in `text` that looks like a secret, in order. */
 export function findLikelySecrets(text: string): LikelySecret[] {
@@ -58,7 +66,7 @@ export function findLikelySecrets(text: string): LikelySecret[] {
     const digits = m[0].replace(/\D/g, "");
     if (digits.length >= 13 && digits.length <= 19 && luhn(digits)) add("card", m);
   }
-  for (const m of text.matchAll(TOKEN)) add("token", m);
+  for (const m of text.matchAll(TOKEN)) if (isTokenLike(text, m)) add("token", m);
   return found.sort((a, b) => a.index - b.index);
 }
 

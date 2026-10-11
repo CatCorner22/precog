@@ -68,7 +68,7 @@ export function procedureAttention(
     }
     if (p.backupPersonIds.length > 0 && p.knowledgeIds.some((id) => critical.has(id))) {
       if (!provenByCurrentBackup(p, current, today)) {
-        const dueOn = shiftDay(p.createdAt, PROVE_WITHIN_DAYS);
+        const dueOn = shiftDay(p.writtenAt ?? p.createdAt, PROVE_WITHIN_DAYS);
         if ((daysBetween(today, dueOn) ?? 0) <= leadDays) {
           unproven.push({
             procedure: p,
