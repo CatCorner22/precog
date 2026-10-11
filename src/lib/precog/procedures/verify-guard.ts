@@ -7,8 +7,10 @@ import { verificationBlockers } from "./writing";
  * Who may verify a procedure, checked on the server when a business is saved.
  * A verification is evidence that a second person checked the steps, so a
  * firm preparer cannot record one (a firm reviewer or owner, or the owner of
- * an account outside any firm, can), and one stamped with an account records
- * only the account that saved it, under that account's own name. A stored
+ * an account outside any firm, can). Every new verification carries the
+ * stamp of the signed-in account that saves it (the browser stamps it from
+ * the session when the button is pressed; see verifyProcedure), under that
+ * account's own name, so the export's "recorded by" is never blank. A stored
  * verification kept on steps that changed, or carried to a later review date
  * by a longer review interval, counts as a new one. A new
  * verification of a procedure whose writing has errors (procedures/writing.ts)
@@ -29,6 +31,8 @@ export const WRITING_BLOCKS_VERIFICATION =
   "Nobody can verify a procedure that has writing errors. Fix the errors the best-practice check lists, then verify it.";
 export const VERIFICATION_ACCOUNT_MISMATCH =
   "Another account recorded this verification. Reload and verify it again.";
+export const VERIFICATION_NEEDS_ACCOUNT =
+  "Precog records every verification under the account that makes it. Sign in, reload and verify it again.";
 
 interface Verification {
   verifiedAt: string;
@@ -114,9 +118,11 @@ export function assertVerificationsAllowed(input: {
   const fresh = newVerifications(input.previousProfile, input.nextProfile, input.latestDay);
   if (fresh.length === 0) return;
   if (input.saverRole === "preparer") throw new RequestError(403, PREPARER_CANNOT_VERIFY);
+  // The stamp the save path checks against is the session's account (saverId).
+  if (fresh.some((v) => !v.accountId)) throw new RequestError(403, VERIFICATION_NEEDS_ACCOUNT);
   const names = new Set(input.saverNames.map((n) => n.trim().slice(0, 120)).filter(Boolean));
   const mismatch = (v: Verification) =>
-    (v.accountId && v.accountId !== input.saverId) || (v.accountName && !names.has(v.accountName));
+    v.accountId !== input.saverId || (v.accountName && !names.has(v.accountName));
   if (fresh.some(mismatch)) throw new RequestError(403, VERIFICATION_ACCOUNT_MISMATCH);
   if (fresh.some((v) => v.blockers > 0)) throw new RequestError(422, WRITING_BLOCKS_VERIFICATION);
 }

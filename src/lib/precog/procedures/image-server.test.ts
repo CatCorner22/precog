@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseUploadInput, takeUploadAllowance, UPLOADS_PER_MINUTE } from "./image-server";
+import { RequestError } from "@/lib/request-errors";
+import {
+  parseUploadInput,
+  storeUploadFor,
+  takeUploadAllowance,
+  UPLOADS_PER_MINUTE,
+} from "./image-server";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 
 const valid = {
@@ -51,5 +57,52 @@ describe("upload allowance", () => {
     expect(() => takeUploadAllowance("u2", limiter)).not.toThrow();
     now = 61_000;
     expect(() => takeUploadAllowance("u1", limiter)).not.toThrow();
+  });
+});
+
+describe("refused uploads and the allowance", () => {
+  const oneAMinute = () => new SlidingWindowLimiter({ limit: 1, windowMs: 60_000 }, () => 0);
+  const stored = { id: "img_1" };
+  const steps = (over: Partial<Parameters<typeof storeUploadFor>[1]> = {}) => ({
+    resolveOwner: async () => "owner-1",
+    assertEngagementOpen: async () => {},
+    insert: async () => stored,
+    ...over,
+  });
+
+  it("spends no slot on an upload refused because the business is not saved (409)", async () => {
+    const limiter = oneAMinute();
+    await expect(
+      storeUploadFor("u1", steps({ resolveOwner: async () => null }), limiter),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(storeUploadFor("u1", steps(), limiter)).resolves.toBe(stored);
+  });
+
+  it("spends no slot on an upload refused by the access or engagement checks (403, 409)", async () => {
+    const limiter = oneAMinute();
+    const refuse = (status: number) => async () => {
+      throw new RequestError(status, "refused");
+    };
+    await expect(
+      storeUploadFor("u1", steps({ resolveOwner: refuse(403) }), limiter),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      storeUploadFor("u1", steps({ assertEngagementOpen: refuse(409) }), limiter),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(storeUploadFor("u1", steps(), limiter)).resolves.toBe(stored);
+  });
+
+  it("spends a slot on an upload that passes the checks", async () => {
+    const limiter = oneAMinute();
+    let inserted = 0;
+    const counting = steps({
+      insert: async () => {
+        inserted += 1;
+        return stored;
+      },
+    });
+    await storeUploadFor("u1", counting, limiter);
+    await expect(storeUploadFor("u1", counting, limiter)).rejects.toMatchObject({ status: 429 });
+    expect(inserted).toBe(1);
   });
 });

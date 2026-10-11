@@ -137,6 +137,13 @@ export interface Procedure {
   proofs: ProcedureProof[];
   /** Calendar days. */
   createdAt: string;
+  /**
+   * Calendar day the procedure first had steps and a named stand-in, so a
+   * stand-in's 90 days to prove it run from then (procedures/attention.ts).
+   * Absent on procedures stored before Precog kept it: those count from
+   * `createdAt`.
+   */
+  writtenAt?: string;
   updatedAt: string;
 }
 

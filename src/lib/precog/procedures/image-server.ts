@@ -46,7 +46,6 @@ export const uploadProcedureImage = createServerFn({ method: "POST" })
   .validator((input: UploadImageInput) => parseUploadInput(input))
   .handler(async ({ context, data }) => {
     assertExpectedAccount(data.expectedAccountId, context.userId);
-    takeUploadAllowance(context.userId);
     const [{ resolveBusinessOwner }, { insertProcedureImage }, { assertEngagementOpen }] =
       await Promise.all([
         import("../business-store"),
@@ -54,21 +53,51 @@ export const uploadProcedureImage = createServerFn({ method: "POST" })
         import("../firm/engagement-store"),
       ]);
     const sql = await getSql();
-    const owner = await resolveBusinessOwner(sql, context.userId, data.businessId);
-    if (!owner)
-      throw new RequestError(
-        409,
-        "Save the business to your account first, then add the picture again.",
-      );
-    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
-    return insertProcedureImage(sql, {
-      ownerId: owner,
-      businessId: data.businessId,
-      declaredType: data.contentType,
-      bytes: new Uint8Array(Buffer.from(data.data, "base64")),
-      uploadedBy: context.userId,
+    return storeUploadFor(context.userId, {
+      resolveOwner: () => resolveBusinessOwner(sql, context.userId, data.businessId),
+      assertEngagementOpen: (owner) =>
+        assertEngagementOpen(sql, owner, data.businessId, context.userId),
+      insert: (owner) =>
+        insertProcedureImage(sql, {
+          ownerId: owner,
+          businessId: data.businessId,
+          declaredType: data.contentType,
+          bytes: new Uint8Array(Buffer.from(data.data, "base64")),
+          uploadedBy: context.userId,
+        }),
     });
   });
+
+/** The checks and the write behind one upload, passed in so the order can be tested. */
+export interface UploadSteps<T> {
+  /** The account that owns the business, or null when it is not saved to one the caller reaches. */
+  resolveOwner: () => Promise<string | null>;
+  /** Throws (409) when the caller is a member of the business's firm and its engagement has ended. */
+  assertEngagementOpen: (owner: string) => Promise<void>;
+  insert: (owner: string) => Promise<T>;
+}
+
+/**
+ * Runs an upload's checks, then spends one of the account's uploads a minute,
+ * then stores it. An upload refused by those checks (409: not saved, or the
+ * engagement has ended; 403: no access) spends nothing, so it never
+ * uses up the allowance for the pictures that follow.
+ */
+export async function storeUploadFor<T>(
+  userId: string,
+  steps: UploadSteps<T>,
+  limiter = uploadLimiter,
+): Promise<T> {
+  const owner = await steps.resolveOwner();
+  if (!owner)
+    throw new RequestError(
+      409,
+      "Save the business to your account first, then add the picture again.",
+    );
+  await steps.assertEngagementOpen(owner);
+  takeUploadAllowance(userId, limiter);
+  return steps.insert(owner);
+}
 
 /** The upload request, bounded before any decoding. */
 export function parseUploadInput(input: unknown): UploadImageInput {

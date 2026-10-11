@@ -7,7 +7,7 @@ import { dueItemsFor } from "../reminders/due-items";
 import type { Person } from "../types";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { procedureAttention, procedureSummary } from "./attention";
-import { newProcedure, newStep, verifyProcedure } from "./lifecycle";
+import { newProcedure, newStep, verifyProcedure, withProcedureEdit } from "./lifecycle";
 import { withProof } from "./proof";
 import type { Procedure } from "./types";
 
@@ -77,6 +77,54 @@ describe("what needs attention", () => {
     ).unproven;
     expect(got.map((u) => u.procedure.id).sort()).toEqual(["helped", "old"]);
     expect(got.every((u) => u.overdue)).toBe(true);
+  });
+
+  it("counts the 90 days from the day the procedure was written, not the day it was started", () => {
+    const started = newProcedure(
+      { industry: "general", title: "Make the daily deposit", knowledgeIds: ["deposit"] },
+      "2026-01-05",
+    );
+    expect(started.writtenAt).toBeUndefined();
+    const withSteps = withProcedureEdit(
+      started,
+      { ...started, steps: [newStep("Count the drawer.")] },
+      "2026-08-01",
+    );
+    // Steps but no stand-in yet: not written for a stand-in to follow.
+    expect(withSteps.writtenAt).toBeUndefined();
+    const writtenToday = withProcedureEdit(
+      withSteps,
+      { ...withSteps, backupPersonIds: ["p2"] },
+      TODAY,
+    );
+    expect(writtenToday.writtenAt).toBe(TODAY);
+    expect(procedureAttention([writtenToday], knowledge, team, "general", TODAY).unproven).toEqual(
+      [],
+    );
+    const due = procedureAttention(
+      [writtenToday],
+      knowledge,
+      team,
+      "general",
+      "2026-12-28",
+    ).unproven;
+    expect(due.map((u) => [u.dueOn, u.overdue])).toEqual([["2026-12-30", false]]);
+    // A later edit keeps the first day it was written.
+    const edited = withProcedureEdit(
+      writtenToday,
+      { ...writtenToday, steps: [newStep("Count the drawer twice.")] },
+      "2026-11-01",
+    );
+    expect(edited.writtenAt).toBe(TODAY);
+  });
+
+  it("dates a procedure stored before Precog kept the day it was written from the day it was started", () => {
+    const { writtenAt: _writtenAt, ...stored } = written({ id: "stored" }, "2026-06-01");
+    const got = procedureAttention([stored], knowledge, team, "general", TODAY).unproven;
+    expect(got.map((u) => [u.dueOn, u.overdue])).toEqual([["2026-08-30", true]]);
+    // Editing it keeps that meaning: it was already written.
+    const edited = withProcedureEdit(stored, { ...stored, title: "Daily deposit" }, TODAY);
+    expect(edited.writtenAt).toBeUndefined();
   });
 
   it("summarises coverage of critical work for the report", () => {

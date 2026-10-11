@@ -15,6 +15,7 @@ import {
   newVerifications,
   PREPARER_CANNOT_VERIFY,
   VERIFICATION_ACCOUNT_MISMATCH,
+  VERIFICATION_NEEDS_ACCOUNT,
   WRITING_BLOCKS_VERIFICATION,
   type SaverRole,
 } from "./verify-guard";
@@ -119,6 +120,16 @@ describe("who may verify, checked when the business is saved", () => {
     });
     expect(save(after, edited, "preparer", "user-pat")).toBeNull();
     expect(save(after, profileWith(), "preparer", "user-pat")).toBeNull();
+  });
+
+  it("refuses a new verification recorded under no account, for a new business as well as a stored one", () => {
+    const unstamped = profileWith(verifyProcedure(written(), "owner", TODAY));
+    for (const role of [null, "owner", "reviewer"] as const) {
+      expect(save(before, unstamped, role)).toBe(VERIFICATION_NEEDS_ACCOUNT);
+      expect(save(null, unstamped, role)).toBe(VERIFICATION_NEEDS_ACCOUNT);
+    }
+    // An unstamped verification already stored on unchanged steps stays readable and saves.
+    expect(save(unstamped, unstamped, "owner")).toBeNull();
   });
 
   it("refuses a verification stamped with another account", () => {
@@ -294,5 +305,12 @@ describe("bringing back a version that carries an older verification", () => {
     expect(save(null, profileWith(copied), "owner")).toBeNull();
     const own = verifyProcedure(written(), "owner", "2026-09-10", ada);
     expect(withoutOthersVerifications([own], ada.id)[0].verifiedByAccountId).toBe(ada.id);
+    // One recorded under no account would be new, and unattributed, in the copy.
+    const legacy = verifyProcedure(written(), "owner", "2026-09-10");
+    expect(save(null, profileWith(legacy), "owner")).toBe(VERIFICATION_NEEDS_ACCOUNT);
+    const [kept] = withoutOthersVerifications([legacy], ada.id);
+    expect(kept.verifiedAt).toBeUndefined();
+    expect(kept.lastVerifiedAt).toBe("2026-09-10");
+    expect(save(null, profileWith(kept), "owner")).toBeNull();
   });
 });
