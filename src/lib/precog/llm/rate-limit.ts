@@ -35,6 +35,15 @@ export class SlidingWindowLimiter {
 
   /** Records a hit when allowed. */
   take(key: string): LimitDecision {
+    return this.decide(key, true);
+  }
+
+  /** The decision `take` would make, without recording a hit. */
+  check(key: string): LimitDecision {
+    return this.decide(key, false);
+  }
+
+  private decide(key: string, record: boolean): LimitDecision {
     const current = this.now();
     // Other keys are swept at most once per window, so one busy limiter does
     // not walk every address it has seen on every request.
@@ -50,8 +59,9 @@ export class SlidingWindowLimiter {
       };
     }
 
-    active.push(current);
-    this.hits.set(key, active);
+    if (record) active.push(current);
+    if (active.length) this.hits.set(key, active);
+    else this.hits.delete(key);
     return { allowed: true, retryAfterMs: 0 };
   }
 
@@ -87,9 +97,13 @@ export function createAnonymousHeavyGate(
 ): (ip: string) => LimitDecision {
   const perIp = new SlidingWindowLimiter(rules.perIp, now);
   const all = new SlidingWindowLimiter(rules.all, now);
+  // Each bucket is spent only when both allow the call, so a refusal by
+  // either one leaves the other unchanged.
   return (ip) => {
-    const own = perIp.take(ip);
+    const own = perIp.check(ip);
     if (!own.allowed) return own;
-    return all.take("anonymous");
+    const shared = all.take("anonymous");
+    if (!shared.allowed) return shared;
+    return perIp.take(ip);
   };
 }
