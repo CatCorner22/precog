@@ -21,7 +21,7 @@ import {
 } from "../firm/billing-store";
 import { setFirmPlan } from "../firm/store";
 import { billingChangeFor, type StripeEvent } from "./stripe";
-import { recordAudit } from "../firm/audit.server";
+import { insertAudit } from "../firm/audit.server";
 import { beforeDeadline } from "../cron/budget";
 
 /**
@@ -62,10 +62,11 @@ import { beforeDeadline } from "../cron/budget";
  * (retryFailedCreditReversals), looking for the reversal at Stripe before
  * it posts one.
  *
- * Work after the commit (the reversal, the second-subscription report, the
- * plan_changed audit row) never throws: the claim has committed, so a
- * failure is reported and the event still answers 200, since Stripe's retry
- * would only find a duplicate.
+ * Work after the commit (the reversal and second-subscription report) never
+ * throws: the claim has committed, so a failure is reported and the event
+ * still answers 200, since Stripe's retry would only find a duplicate.
+ * Plan changes are audited in their transaction order; a failed audit insert
+ * is isolated with a savepoint and reported after the commit.
  */
 export async function applyBillingEvent(
   sql: Sql,
@@ -75,22 +76,17 @@ export async function applyBillingEvent(
   // callback are invisible to narrowing after it.
   const reversals: PendingReversal[] = [];
   const secondSubscriptions: { userId: string; ignored: string; stored: string | null }[] = [];
+  const planAuditFailures: unknown[] = [];
   const orphanPayments: {
     userId: string;
     customerId: string | null;
     paymentIntentId: string | null;
   }[] = [];
-  const planChanges: {
-    userId: string;
-    from: string | null;
-    to: string;
-    priceId: string | null;
-  }[] = [];
   const outcome = await inTransaction(
     sql,
     async (tx) => {
       // A deadlock victim runs again from nothing: what the first run noted goes.
-      for (const list of [reversals, secondSubscriptions, orphanPayments, planChanges]) {
+      for (const list of [reversals, secondSubscriptions, orphanPayments, planAuditFailures]) {
         list.length = 0;
       }
       if (!(await claimBillingEvent(tx, event.id, event.type))) return "duplicate";
@@ -206,16 +202,22 @@ export async function applyBillingEvent(
         ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "monthly" : "assessment",
       );
       // Only the firm the account owns changes plan; a firm it merely joined
-      // does not, so its log takes nothing. The status before is the one read
-      // under the row lock, and only an event that wrote is logged, so two
-      // events delivered together log one change each at most.
+      // does not, so its log takes nothing. The audit row shares this
+      // transaction and row lock, keeping concurrent changes in status order.
       if (ownsFirm && wrote && status !== previousStatus) {
-        planChanges.push({
-          userId: account,
-          from: previousStatus,
-          to: status,
-          priceId: change.priceId,
-        });
+        await tx`savepoint stripe_plan_audit`;
+        try {
+          await insertAudit(tx, {
+            firmUserId: account,
+            actorUserId: null,
+            event: "plan_changed",
+            detail: { from: previousStatus, to: status, priceId: change.priceId },
+          });
+        } catch (error) {
+          await tx`rollback to savepoint stripe_plan_audit`;
+          planAuditFailures.push(error);
+        }
+        await tx`release savepoint stripe_plan_audit`;
       }
       return "applied";
     },
@@ -233,13 +235,9 @@ export async function applyBillingEvent(
   for (const payment of orphanPayments) {
     await afterCommit(() => reportPaymentForDeletedAccount(payment));
   }
-  // The firm's log takes a moved status once the change has committed; Stripe acted, so no actor.
-  for (const { userId, ...detail } of planChanges) {
-    await recordAudit(sql, {
-      firmUserId: userId,
-      actorUserId: null,
-      event: "plan_changed",
-      detail,
+  for (const error of planAuditFailures) {
+    await afterCommit(async () => {
+      throw error;
     });
   }
   return outcome;
