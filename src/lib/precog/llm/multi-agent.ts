@@ -23,7 +23,10 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
   const residual = tools.find((t) => t.tool === "get_residual_portfolio")?.data as
     { averageResidual: number; top: { name: string; residual: number }[] } | undefined;
   const sod = tools.find((t) => t.tool === "get_sod_conflicts")?.data as
-    { name: string; residualRiskAccepted: boolean }[] | undefined;
+    { name: string; residualRiskAccepted: boolean; open: boolean }[] | undefined;
+  // Open by the one rule every screen counts with (sod/open-findings), so
+  // this lens gives the same total as the answer, Start here and the report.
+  const openSod = sod?.filter((s) => s.open);
   const scenario = tools.find((t) => t.tool === "run_precog_scenario")?.data as
     ScenarioRunData | undefined;
   const cascade = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as
@@ -65,8 +68,8 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
     agent: "shield",
     title: "Controls: who can do what alone",
     bullets: [
-      sod
-        ? `${count(sod.length, "duty conflict")}; ${sod.filter((s) => !s.residualRiskAccepted).length} not yet accepted or fixed. Write each decision down in the Decisions log.`
+      openSod
+        ? `${count(openSod.length, "open duty conflict")}; ${openSod.filter((s) => !s.residualRiskAccepted).length} not yet accepted or fixed. Write each decision down in the Decisions log.`
         : "No duty-conflict check in this run.",
       rag?.hits?.[0]
         ? `Guidance: ${rag.hits[0].title}: ${rag.hits[0].text.slice(0, 160)}…`

@@ -312,3 +312,52 @@ describe("procedure links sent to Pioneer", () => {
     expect(links).toEqual([{ id: written.id, title: "Close the day", knowledgeIds: [item.id] }]);
   });
 });
+
+describe("pioneerProfileFrom bounds untrusted request fields", () => {
+  it("clamps staff figures as the stored-profile path does", () => {
+    const base = getIndustryTemplate("retail").staffComposition;
+    const p = pioneerProfileFrom({
+      industry: "retail",
+      staff: {
+        // @ts-expect-error deliberately invalid wire input
+        teamSize: null,
+        soleOwnerKnowledgeCount: -10,
+        avgTenureYears: Infinity,
+        // 1e309 as a request parses it: past the largest double, so Infinity.
+        segregationScore: Number("1e309"),
+      },
+    });
+    expect(p.staff.teamSize).toBe(base.teamSize);
+    expect(p.staff.soleOwnerKnowledgeCount).toBe(0);
+    expect(Number.isFinite(p.staff.avgTenureYears)).toBe(true);
+    expect(p.staff.segregationScore).toBeLessThanOrEqual(100);
+    expect(
+      pioneerProfileFrom({ industry: "retail", staff: { teamSize: -10 } }).staff.teamSize,
+    ).toBe(1);
+    expect(Object.values(p.staff).every((v) => typeof v !== "number" || Number.isFinite(v))).toBe(
+      true,
+    );
+  });
+
+  it("keeps only real dates as a journal entry's createdAt and reviewBy", () => {
+    const entry = (id: string, createdAt: string, reviewBy?: string) => ({
+      id,
+      createdAt,
+      subject: "Cover the deposit",
+      kind: "monitor" as const,
+      note: "",
+      ...(reviewBy ? { reviewBy } : {}),
+    });
+    const p = pioneerProfileFrom({
+      industry: "retail",
+      decisions: [
+        entry("good", "2026-09-01T00:00:00.000Z", "2026-11-01"),
+        entry("day-only", "2026-09-01", "1st Nov"),
+        entry("bad-created", "1st Nov"),
+      ],
+    });
+    expect(p.decisions.map((d) => d.id)).toEqual(["good", "day-only"]);
+    expect(p.decisions[0]?.reviewBy).toBe("2026-11-01");
+    expect(p.decisions[1]?.reviewBy).toBeUndefined();
+  });
+});
