@@ -18,10 +18,12 @@ export const LLM_LIMITS = {
   /**
    * Signed-out calls to an expensive path (Pioneer runs its whole local
    * analysis on the server, over half a second of CPU for a large map): per
-   * address, and for every signed-out caller together on this instance.
+   * address, and for every signed-out caller together on this instance. One
+   * question is two such calls (the rules brief, then the highlights), so an
+   * address gets four questions a minute and the instance twenty.
    */
-  anonymousHeavyPerIp: { limit: 4, windowMs: 60_000 },
-  anonymousHeavyAll: { limit: 20, windowMs: 60_000 },
+  anonymousHeavyPerIp: { limit: 8, windowMs: 60_000 },
+  anonymousHeavyAll: { limit: 40, windowMs: 60_000 },
 } as const;
 
 export class SlidingWindowLimiter {

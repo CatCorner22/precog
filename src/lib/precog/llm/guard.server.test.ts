@@ -133,7 +133,9 @@ describe("resolveLlmAccess", () => {
 
   it("gives signed-out callers a few heavy runs a minute, then asks them to sign in", async () => {
     const { resolveLlmAccess } = await guard();
-    for (let i = 0; i < 4; i++) await resolveLlmAccess(undefined, { heavy: true });
+    const { LLM_LIMITS } = await import("./rate-limit");
+    for (let i = 0; i < LLM_LIMITS.anonymousHeavyPerIp.limit; i++)
+      await resolveLlmAccess(undefined, { heavy: true });
     await expect(resolveLlmAccess(undefined, { heavy: true })).rejects.toMatchObject({
       status: 429,
       message: "Too many requests — sign in, or try again in a minute.",

@@ -116,6 +116,11 @@ describe("createAnonymousHeavyGate", () => {
   });
 
   it("is much tighter than the shared per-address model limit", () => {
-    expect(LLM_LIMITS.anonymousHeavyPerIp.limit).toBeLessThan(LLM_LIMITS.perIp.limit / 4);
+    expect(LLM_LIMITS.anonymousHeavyPerIp.limit).toBeLessThan(LLM_LIMITS.perIp.limit / 3);
+  });
+
+  it("fits four signed-out questions a minute, each a rules call and a highlights call", () => {
+    expect(LLM_LIMITS.anonymousHeavyPerIp.limit).toBe(4 * 2);
+    expect(LLM_LIMITS.anonymousHeavyAll.limit).toBe(20 * 2);
   });
 });
