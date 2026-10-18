@@ -46,10 +46,10 @@
     "test:postgres:races": "node scripts/test-postgres-races.mjs"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite": "^0.5.10",
     "@tailwindcss/vite": "^4.1.0",
-    "@tanstack/react-router": "^1.170.41",
-    "@tanstack/react-start": "^1.168.60",
+    "@tanstack/react-router": "^1.170.44",
+    "@tanstack/react-start": "^1.169.2",
     "@xyflow/react": "^12.12.0",
     "better-auth": "~1.6.25",
     "class-variance-authority": "^0.7.1",
@@ -58,12 +58,12 @@
     "kysely": "^0.29.6",
     "lucide-react": "^0.577.0",
     "pg": "^8.23.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.1.0",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
@@ -78,10 +78,10 @@
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^15.15.0",
     "nitro": "3.0.260603-beta",
-    "playwright": "^1.64.0",
-    "prettier": "^3.9.9",
+    "playwright": "^1.64.1",
+    "prettier": "^3.9.10",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.71.1",
+    "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
     "vitest": "^4.1.11"
   }
