@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FIRST_STEPS_SHOWN, stepDestination } from "@/lib/precog/start-here/layout";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { benchmarkCitation, effortPhrase, lossPhrase } from "@/lib/precog/evidence";
+import { cn } from "@/lib/utils";
 
 export function StartHereFirstStepsSection({
   model,
@@ -41,54 +42,70 @@ export function StartHereFirstStepsSection({
     // duty-conflict tab's "What to do first" box gives it.
     const label = (i === 0 && model.firstLine) || s.control.label;
     return (
-      <li key={s.control.id} className="flex gap-3">
-        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
+      <li
+        key={s.control.id}
+        className={cn(
+          "flex gap-3 rounded-lg p-4",
+          i === 0 && "bg-primary/5 ring-1 ring-primary/20",
+        )}
+      >
+        <span
+          className={cn(
+            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+            i === 0 ? "bg-primary text-primary-fg" : "bg-elevated text-muted",
+          )}
+          aria-hidden
+        >
           {i + 1}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-            <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{label}</p>
+          {i === 0 && <p className="mb-1 text-xs font-medium text-primary">Start with this</p>}
+          <p className="text-sm font-medium leading-relaxed [overflow-wrap:anywhere]">{label}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">{effortPhrase(s.control)}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
             {onOpenDetail && landing && (
               <Button
                 size="sm"
-                variant="secondary"
-                className="shrink-0"
+                variant={i === 0 ? "default" : "secondary"}
+                className="min-h-11 h-auto max-w-full py-2 text-left whitespace-normal"
                 data-step-id={s.control.id}
                 aria-label={`${landing.button}: ${label}`}
                 onClick={() => onOpenDetail(landing.tab, landing.item)}
               >
-                {landing.button}
-                <ArrowRight className="size-3.5" aria-hidden />
+                <span className="min-w-0 [overflow-wrap:anywhere]">{landing.button}</span>
+                <ArrowRight className="size-3.5 shrink-0" aria-hidden />
               </Button>
             )}
           </div>
-          <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
-          <div className="mt-1 text-xs text-subtle">
-            {effortPhrase(s.control)} ·{" "}
-            {s.answers > 0
-              ? `covers ${s.answers === 1 ? "1 duty pair" : `${s.answers} of the duty pairs`} behind your open conflicts · `
-              : ""}
-            would plausibly have caught {s.supportingCaseIds.length}{" "}
-            {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
-            {s.supportingCaseIds.length > 0 && (
-              <details className="inline">
-                <summary className="ml-1 inline cursor-pointer font-medium text-primary hover:underline">
-                  · which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
-                </summary>
-                <ul className="mt-1 space-y-0.5 text-xs text-muted">
+          <details className="mt-1">
+            <summary
+              aria-label={`Why this helps: ${label}`}
+              className="min-h-11 w-fit max-w-full cursor-pointer content-center rounded-md text-xs font-medium text-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Why this helps
+            </summary>
+            <p className="text-sm leading-relaxed text-muted">{s.control.why}</p>
+            <div className="mt-2 text-xs leading-relaxed text-subtle">
+              {s.answers > 0
+                ? `covers ${s.answers === 1 ? "1 duty pair" : `${s.answers} of the duty pairs`} behind your open conflicts · `
+                : ""}
+              would plausibly have caught {s.supportingCaseIds.length}{" "}
+              {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
+              {s.supportingCaseIds.length > 0 && (
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted">
                   {s.supportingCaseIds.map((id) => {
                     const c = caseById.get(id);
                     return c ? (
                       <li key={id}>
-                        · {c.title}
+                        {c.title}
                         {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
                       </li>
                     ) : null;
                   })}
                 </ul>
-              </details>
-            )}
-          </div>
+              )}
+            </div>
+          </details>
         </div>
       </li>
     );
@@ -98,28 +115,31 @@ export function StartHereFirstStepsSection({
     <section className="space-y-3">
       {showActions && (
         <>
-          <SectionHeading
-            icon={<ArrowRight className="size-4" aria-hidden />}
-            title="Do these first"
-            subtitle="Precog ranks actions by open conflict pairs covered, then by real cases below each could plausibly have caught."
-          />
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold tracking-tight">Do these first</h2>
+            <p className="text-sm text-muted">
+              {steps.length > 0
+                ? "Start with one step. The reasons are here when you need them."
+                : "No actions from the duty conflicts recorded so far."}
+            </p>
+          </div>
 
           <Card>
-            <CardContent className="pt-3">
+            <CardContent className="p-3">
               {steps.length === 0 ? (
                 <p className="text-sm leading-relaxed text-muted">
                   Nothing outstanding from the duty conflicts. What follows applies to every
                   business.
                 </p>
               ) : (
-                <ol className="space-y-2.5">{shown.map(renderStep)}</ol>
+                <ol className="space-y-1">{shown.map(renderStep)}</ol>
               )}
               {rest.length > 0 && (
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-medium text-primary hover:underline">
+                  <summary className="min-h-11 cursor-pointer content-center rounded-md px-4 text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary">
                     Show the other {rest.length === 1 ? "one" : rest.length}
                   </summary>
-                  <ol className="mt-3 space-y-3">
+                  <ol start={FIRST_STEPS_SHOWN + 1} className="mt-3 space-y-1">
                     {rest.map((s, i) => renderStep(s, i + FIRST_STEPS_SHOWN))}
                   </ol>
                 </details>
@@ -131,6 +151,17 @@ export function StartHereFirstStepsSection({
                 </p>
               )}
               {onOpenDetail && <SoleTaskLine sole={model.soleKnowledge[0]} onOpen={onOpenDetail} />}
+              {steps.length > 0 && (
+                <details className="mt-3 border-t border-border px-4 pt-1">
+                  <summary className="min-h-11 cursor-pointer content-center rounded-md text-xs font-medium text-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-primary">
+                    How these actions are ranked
+                  </summary>
+                  <p className="pb-3 text-xs leading-relaxed text-muted">
+                    Precog ranks actions by open conflict pairs covered, then by real cases below
+                    each could plausibly have caught.
+                  </p>
+                </details>
+              )}
             </CardContent>
           </Card>
 
@@ -226,14 +257,14 @@ function SoleTaskLine({
   const person = sole?.owners[0];
   if (!sole || !person) return null;
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 pt-4">
       <p className="min-w-0 text-sm leading-relaxed">
         Only {person.name} can run {sole.name}.
       </p>
       <Button
         size="sm"
         variant="secondary"
-        className="shrink-0"
+        className="min-h-11 h-auto max-w-full py-2 whitespace-normal"
         aria-label={`Open Who knows what: ${sole.name}`}
         onClick={() => onOpen("knowledge", sole.knowledgeId)}
       >

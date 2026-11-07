@@ -213,9 +213,7 @@ describe("parsePeopleCsv", () => {
     const back = parsePeopleCsv(
       csv,
       { ...dental, people },
-      {
-        today: new Date("2026-09-30T12:00:00Z"),
-      },
+      { today: new Date("2026-09-30T12:00:00Z") },
     ).people;
     expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
     expect("lastDay" in (back.find((p) => p.name === "Chris Diaz") ?? {})).toBe(false);

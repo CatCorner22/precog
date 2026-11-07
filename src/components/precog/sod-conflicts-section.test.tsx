@@ -293,7 +293,9 @@ describe("Start here and Who controls what name one first step, for the person i
     const startHere = renderToStaticMarkup(
       <StartHereFirstStepsSection model={model.firstSteps} part="actions" />,
     );
-    const first = /<p class="min-w-0 grow[^"]*">([^<]*)<\/p>/.exec(startHere)?.[1];
+    const first = /<p class="text-sm font-medium leading-relaxed[^"]*">([^<]*)<\/p>/.exec(
+      startHere,
+    )?.[1];
     expect(first).toBe(LINE);
     expect(startHere).not.toContain("the person who banks the money");
     expect(boxItems(page)[0]).toBe(`First, as on Start here: ${LINE}`);
