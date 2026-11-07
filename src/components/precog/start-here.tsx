@@ -44,8 +44,8 @@ export function StartHere({
   const { say } = usePresentation();
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-2">
+    <div className="space-y-6">
+      <header className="space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Start here</h1>
           {!model.preamble.isSampleTeam && (
@@ -53,7 +53,7 @@ export function StartHere({
               to="/report"
               className={buttonClass({
                 variant: "outline",
-                className: "h-9 text-muted hover:text-fg",
+                className: "min-h-11 text-muted hover:text-fg",
               })}
             >
               <FileText className="size-4" aria-hidden />
@@ -62,25 +62,9 @@ export function StartHere({
           )}
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          What to do first, who is out today, and whether the work goes on without them.
+          Your next steps to protect the business and keep work moving.
         </p>
         <WordsUsedHere tab="start" />
-        <HowThisWorks>
-          <p>
-            This page leads with who is out, three steps, and the open duty-conflict count. The
-            stand-in figure is under {WHY_WE_SAY_THIS}. Most steps are checks that catch problems
-            sooner. The sooner a theft is found, the smaller the loss.
-          </p>
-          <p>
-            {WHY_WE_SAY_THIS} shows where one person controls too much, what these gaps have cost
-            real businesses, and who can cover for whom. It also explains what Precog cannot tell
-            you and lists every case it uses.
-          </p>
-          <p>
-            Each dollar figure and time span links to its case or study. Precog calculates the
-            coverage percentages. {tabLabel("knowledge", say)} explains how.
-          </p>
-        </HowThisWorks>
       </header>
 
       <StartHerePreamble model={model.preamble} onOpenDetail={onOpenDetail} />
@@ -102,25 +86,39 @@ export function StartHere({
         onOpenDetail={onOpenDetail}
         part="today"
       />
-      <StartHereFirstStepsSection
-        model={model.firstSteps}
-        onOpenDetail={onOpenDetail}
-        part="actions"
-      />
-      {model.exposure.titleDuties && (
-        <p className="text-xs text-muted" data-testid="title-duties-note">
-          {model.exposure.titleDuties} The steps above count those duties; untick or confirm them on{" "}
-          <button
-            type="button"
-            onClick={() => onOpenDetail("team")}
-            className="font-medium text-primary underline underline-offset-2 hover:text-fg"
-          >
-            Team
-          </button>
-          .
-        </p>
-      )}
-      <StartHereFiguresSection model={model.figures} onOpenDetail={onOpenDetail} part="conflicts" />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="min-w-0 space-y-3">
+          <StartHereFirstStepsSection
+            model={model.firstSteps}
+            onOpenDetail={onOpenDetail}
+            part="actions"
+          />
+          {model.exposure.titleDuties && (
+            <p className="text-xs leading-relaxed text-muted" data-testid="title-duties-note">
+              {model.exposure.titleDuties} Untick or confirm those duties on{" "}
+              <button
+                type="button"
+                onClick={() => onOpenDetail("team")}
+                className="font-medium text-primary underline underline-offset-2 hover:text-fg"
+              >
+                Team
+              </button>
+              .
+            </p>
+          )}
+        </div>
+        <aside aria-label="At a glance" className="min-w-0 space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight">At a glance</h2>
+          <StartHereFiguresSection
+            model={model.figures}
+            onOpenDetail={onOpenDetail}
+            part="conflicts"
+          />
+          <p className="text-xs leading-relaxed text-muted">
+            Open the count to review the duty assignments behind this figure.
+          </p>
+        </aside>
+      </div>
       <StartHereBlindSpotsSection />
 
       <HowThisWorks
@@ -128,6 +126,22 @@ export function StartHere({
         className="max-w-none"
         bodyClassName="space-y-8 pt-2 text-base text-fg"
       >
+        <HowThisWorks>
+          <p>
+            This page leads with who is out, three steps, and the open duty-conflict count. The
+            stand-in figure is under {WHY_WE_SAY_THIS}. Most steps are checks that catch problems
+            sooner. The sooner a theft is found, the smaller the loss.
+          </p>
+          <p>
+            {WHY_WE_SAY_THIS} shows where one person controls too much, what these gaps have cost
+            real businesses, and who can cover for whom. It also explains what Precog cannot tell
+            you and lists every case it uses.
+          </p>
+          <p>
+            Each dollar figure and time span links to its case or study. Precog calculates the
+            coverage percentages. {tabLabel("knowledge", say)} explains how.
+          </p>
+        </HowThisWorks>
         <StartHereFiguresSection model={model.figures} onOpenDetail={onOpenDetail} part="standin" />
         <StartHereExposureSection model={model.exposure} onOpenDetail={onOpenDetail} />
         <StartHereCostSection model={model.cost} />
