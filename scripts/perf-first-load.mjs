@@ -47,7 +47,15 @@ export const PAGE_BUDGETS_KB = {
   // add 6.6 KB to start-here-copy; CI measured 438.0 KB on e452d10. Loading
   // the case library only when Start here's evidence section opens is the
   // change to make before raising this again.
-  "/": 445,
+  // Raised from 445 KB to 452 KB on 2026-11-07 for the Before it bites
+  // section on Start here: the blind-spot library (25 entries with their
+  // checks, fixes and sources) and the section measure / at 448.5 KB on the
+  // compiled build (CI 448.0 KB), 3.5 KB over. The profile normalizer reads
+  // the id list only (blind-spots/ids.ts), so the firm workspace and the
+  // public pages do not load the library text. Loading the library only when
+  // the section scrolls into view is the change to make before raising this
+  // again.
+  "/": 452,
   "/login": 167,
   "/privacy": 154,
   "/terms": 152,

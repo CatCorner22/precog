@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultProfile, normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { ONBOARDING_FACTS_VERSION } from "../onboarding/decision-model";
 import {
+  headcountBasis,
   headcountOf,
   nextThresholdLine,
   normalizeBlindSpotAnswers,
@@ -15,10 +16,24 @@ const withHeadcount = (p: PracticeProfile, workforceCount: number): PracticeProf
 });
 
 describe("selectBlindSpots", () => {
-  it("reads the head count from setup first, then the mapped team", () => {
+  it("reads the head count from setup first, then a setup range's low end, then the mapped team", () => {
     const dental = defaultProfile("dental");
     expect(headcountOf(dental)).toBe(dental.staff.teamSize);
     expect(headcountOf(withHeadcount(dental, 12))).toBe(12);
+    const banded: PracticeProfile = {
+      ...dental,
+      onboardingFacts: { schemaVersion: ONBOARDING_FACTS_VERSION, workforceBand: "31-60" },
+    };
+    expect(headcountBasis(banded)).toEqual({ count: 31, source: "band", band: "31-60" });
+    const smallBand: PracticeProfile = {
+      ...dental,
+      onboardingFacts: { schemaVersion: ONBOARDING_FACTS_VERSION, workforceBand: "2-6" },
+    };
+    expect(headcountBasis(smallBand).source).toBe("team");
+    const sel = selectBlindSpots(banded);
+    expect(nextThresholdLine(sel)).toBe(
+      "At 31 or more on payroll (31-60 at setup), the next rule starts at 50: Family and Medical Leave Act and the ACA employer mandate.",
+    );
   });
 
   it("shows a line of business only its own traps", () => {

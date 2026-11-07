@@ -13,30 +13,53 @@ import {
   type HeadcountThreshold,
 } from "./library";
 
-export const BLIND_SPOT_ANSWERS = ["handled", "not_yet", "unsure"] as const;
-export type BlindSpotAnswer = (typeof BLIND_SPOT_ANSWERS)[number];
+export {
+  BLIND_SPOT_ANSWERS,
+  MAX_STORED_BLIND_SPOT_RECORDS,
+  isBlindSpotAnswer,
+  normalizeBlindSpotAnswers,
+  withBlindSpotAnswer,
+  type BlindSpotAnswer,
+  type BlindSpotRecord,
+} from "./answers";
+import type { BlindSpotAnswer, BlindSpotRecord } from "./answers";
 
-export function isBlindSpotAnswer(value: unknown): value is BlindSpotAnswer {
-  return typeof value === "string" && (BLIND_SPOT_ANSWERS as readonly string[]).includes(value);
+export type HeadcountSource = "setup" | "band" | "team";
+
+export interface HeadcountBasis {
+  count: number;
+  /** An exact count from setup, the low end of a setup range, or the mapped team. */
+  source: HeadcountSource;
+  /** The setup range, when that is what the owner gave. */
+  band?: string;
 }
 
-/** The owner's answer to one blind spot's check question, dated. */
-export interface BlindSpotRecord {
-  id: string;
-  answer: BlindSpotAnswer;
-  /** Calendar day the answer was given. */
-  on: string;
+/** The low end of a setup range such as "7-30" or "250+". */
+function bandFloor(band: string): number {
+  const n = Number.parseInt(band, 10);
+  return Number.isFinite(n) ? n : 0;
 }
 
-export const MAX_STORED_BLIND_SPOT_RECORDS = 200;
-
-/** People on payroll: the onboarding head count when given, else the mapped team. */
-export function headcountOf(profile: PracticeProfile): number {
-  const workforce = profile.onboardingFacts?.workforceCount;
-  if (typeof workforce === "number" && Number.isFinite(workforce) && workforce > 0) {
-    return Math.floor(workforce);
+/**
+ * People on payroll: the exact setup count when given; else the low end of
+ * the setup range, if the mapped team is not larger; else the mapped team.
+ */
+export function headcountBasis(profile: PracticeProfile): HeadcountBasis {
+  const team = Math.max(0, Math.floor(profile.staff.teamSize));
+  const facts = profile.onboardingFacts;
+  const exact = facts?.workforceCount;
+  if (typeof exact === "number" && Number.isFinite(exact) && exact > 0) {
+    return { count: Math.floor(exact), source: "setup" };
   }
-  return Math.max(0, Math.floor(profile.staff.teamSize));
+  const floor = facts?.workforceBand ? bandFloor(facts.workforceBand) : 0;
+  if (facts?.workforceBand && floor > team) {
+    return { count: floor, source: "band", band: facts.workforceBand };
+  }
+  return { count: team, source: "team" };
+}
+
+export function headcountOf(profile: PracticeProfile): number {
+  return headcountBasis(profile).count;
 }
 
 export function appliesTo(spot: BlindSpot, profile: PracticeProfile, headcount: number): boolean {
@@ -52,6 +75,9 @@ export interface SelectedBlindSpot {
 
 export interface BlindSpotSelection {
   headcount: number;
+  headcountSource: HeadcountSource;
+  /** The setup range the head count came from, when it did. */
+  headcountBand?: string;
   tiers: { tier: BlindSpotTier; spots: SelectedBlindSpot[] }[];
   /** Thresholds at or below the head count, highest first. */
   crossed: HeadcountThreshold[];
@@ -61,7 +87,8 @@ export interface BlindSpotSelection {
 }
 
 export function selectBlindSpots(profile: PracticeProfile): BlindSpotSelection {
-  const headcount = headcountOf(profile);
+  const basis = headcountBasis(profile);
+  const headcount = basis.count;
   const records = new Map((profile.blindSpotAnswers ?? []).map((r) => [r.id, r]));
   const tiers = TIER_ORDER.map((tier) => ({
     tier,
@@ -79,6 +106,8 @@ export function selectBlindSpots(profile: PracticeProfile): BlindSpotSelection {
   );
   return {
     headcount,
+    headcountSource: basis.source,
+    ...(basis.band ? { headcountBand: basis.band } : {}),
     tiers,
     crossed: thresholds.filter((t) => t.at <= headcount).sort((a, b) => b.at - a.at),
     ahead: thresholds.filter((t) => t.at > headcount).sort((a, b) => a.at - b.at),
@@ -86,41 +115,22 @@ export function selectBlindSpots(profile: PracticeProfile): BlindSpotSelection {
   };
 }
 
+/** "At 12 on payroll" for a count; "At 7 or more on payroll (7-30 at setup)" for a range. */
+export function headcountPhrase(selection: BlindSpotSelection): string {
+  const { headcount, headcountBand } = selection;
+  return headcountBand
+    ? `${headcount} or more on payroll (${headcountBand} at setup)`
+    : `${headcount} on payroll`;
+}
+
 /** One sentence on where the head count sits against the next rule. */
 export function nextThresholdLine(selection: BlindSpotSelection): string | null {
   const next = selection.ahead[0];
   if (!next) return null;
+  if (selection.headcountBand) {
+    return `At ${headcountPhrase(selection)}, the next rule starts at ${next.at}: ${next.rule}.`;
+  }
   const gap = next.at - selection.headcount;
   const hires = gap === 1 ? "one more hire" : `${gap} more hires`;
-  return `At ${selection.headcount} on payroll, ${hires} switches on: ${next.rule}.`;
-}
-
-/** Normalizes stored answers: known ids, known answers, a calendar day, newest kept. */
-export function normalizeBlindSpotAnswers(
-  value: unknown,
-  isCalendarDate: (day: string) => boolean,
-): BlindSpotRecord[] {
-  if (!Array.isArray(value)) return [];
-  const known = new Set(BLIND_SPOTS.map((s) => s.id));
-  const byId = new Map<string, BlindSpotRecord>();
-  for (const entry of value.slice(0, MAX_STORED_BLIND_SPOT_RECORDS)) {
-    if (!entry || typeof entry !== "object") continue;
-    const raw = entry as Record<string, unknown>;
-    if (typeof raw.id !== "string" || !known.has(raw.id)) continue;
-    if (!isBlindSpotAnswer(raw.answer)) continue;
-    if (typeof raw.on !== "string" || !isCalendarDate(raw.on)) continue;
-    byId.set(raw.id, { id: raw.id, answer: raw.answer, on: raw.on });
-  }
-  return [...byId.values()];
-}
-
-/** The answers with one replaced or added. */
-export function withBlindSpotAnswer(
-  records: readonly BlindSpotRecord[],
-  id: string,
-  answer: BlindSpotAnswer,
-  on: string,
-): BlindSpotRecord[] {
-  if (!BLIND_SPOTS.some((s) => s.id === id)) return [...records];
-  return [...records.filter((r) => r.id !== id), { id, answer, on }];
+  return `At ${headcountPhrase(selection)}, ${hires} switches on: ${next.rule}.`;
 }

@@ -6,7 +6,7 @@ import type {
   StaffComposition,
 } from "./types";
 import { mergeStaffIntoVariables, type RiskVariableState } from "./scoring/dynamic-variables";
-import { withBlindSpotAnswer, type BlindSpotAnswer } from "./blind-spots/select";
+import { withBlindSpotAnswer, type BlindSpotAnswer } from "./blind-spots/answers";
 import {
   mergeDualReleasePolicy,
   mitigatedSodRuleIds,

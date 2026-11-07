@@ -63,7 +63,7 @@ import { usePortfolio, type SwitchResult } from "./use-portfolio";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { isMapCustomized, type DecisionInput } from "./profile-actions";
 import { makeProfileEdits } from "./practice-edits";
-import type { BlindSpotAnswer } from "./blind-spots/select";
+import type { BlindSpotAnswer } from "./blind-spots/answers";
 import { localDateKey } from "./dates";
 import type { Place, Procedure, ProcedureProof } from "./procedures/types";
 import type { VerifyingAccount } from "./procedures/lifecycle";

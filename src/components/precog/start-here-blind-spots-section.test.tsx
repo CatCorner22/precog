@@ -20,7 +20,8 @@ describe("Start here, Before it bites", () => {
     });
     expect(html).toContain("Before it bites");
     expect(html).toContain("At 9 on payroll, 2 more hires switches on: OSHA injury log");
-    expect(html).toContain("Already in force at 9:");
+    expect(html).toContain("Already in force at 9 on payroll:");
+    expect(html).toContain("This is the head count you gave at setup.");
     const order = [
       "You pay personally",
       "Money that does not come back",
@@ -53,5 +54,17 @@ describe("Start here, Before it bites", () => {
     expect(groups.length).toBeGreaterThan(10);
     expect((html.match(/>Handled</g) ?? []).length).toBe(groups.length);
     expect(html).toContain("The DEA registration lapses every three years");
+  });
+
+  it("names a setup range as the head count's source and uses its low end", () => {
+    const html = render({
+      ...defaultProfile("retail"),
+      onboardingFacts: { schemaVersion: ONBOARDING_FACTS_VERSION, workforceBand: "7-30" },
+    });
+    expect(html).toContain(
+      "At 7 or more on payroll (7-30 at setup), the next rule starts at 8: Tennessee Human Rights Act.",
+    );
+    expect(html).toContain("Already in force at 7 or more on payroll (7-30 at setup):");
+    expect(html).toContain("Setup recorded a range, so Precog uses its low end");
   });
 });

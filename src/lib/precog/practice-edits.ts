@@ -11,7 +11,7 @@ import type { RiskVariableState } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import type { AccessReconciliation } from "./firm/reconcile";
 import type { IndustryId } from "./industry";
-import type { BlindSpotAnswer } from "./blind-spots/select";
+import type { BlindSpotAnswer } from "./blind-spots/answers";
 import type { IntegrationDrift } from "./integrations/qbo/model";
 import { resolveTemplate } from "./active-template";
 import {

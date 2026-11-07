@@ -1,7 +1,7 @@
 import { normalizeInsuranceRecord } from "./scoring/insurance-record";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { isCalendarDate, localDateKey } from "./dates";
-import { normalizeBlindSpotAnswers, type BlindSpotRecord } from "./blind-spots/select";
+import { normalizeBlindSpotAnswers, type BlindSpotRecord } from "./blind-spots/answers";
 import { soleOwnerCriticalCount, type CoverageStatus } from "./continuity/coverage";
 import type { ContinuityStep } from "./decisions/follow-through";
 import { type DocumentationState } from "./continuity/documentation";

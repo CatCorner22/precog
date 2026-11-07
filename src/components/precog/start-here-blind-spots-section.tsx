@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ExternalLink, ShieldAlert } from "lucide-react";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
+  headcountPhrase,
   nextThresholdLine,
   selectBlindSpots,
   type BlindSpotAnswer,
@@ -67,12 +68,16 @@ function HeadcountCard({ selection }: { selection: BlindSpotSelection }) {
         {line && <p className="font-medium text-fg">{line}</p>}
         {crossed.length > 0 && (
           <p className="text-muted">
-            Already in force at {selection.headcount}:{" "}
+            Already in force at {headcountPhrase(selection)}:{" "}
             {crossed.map((t) => `${t.rule} (${t.at}${t.region ? ", Tennessee" : ""})`).join("; ")}.
           </p>
         )}
         <p className="text-xs text-muted">
-          Counts come from the head count you gave at setup, or the mapped team when you gave none.
+          {selection.headcountSource === "setup"
+            ? "This is the head count you gave at setup."
+            : selection.headcountSource === "band"
+              ? "Setup recorded a range, so Precog uses its low end; the mapped team is smaller."
+              : "This is the mapped team; setup recorded no larger head count."}{" "}
           Part-timers count. Tennessee rules are marked; other states differ.
         </p>
       </CardContent>

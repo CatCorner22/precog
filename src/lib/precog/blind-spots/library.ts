@@ -6,6 +6,7 @@
  * carry `region` and name the state they were checked against.
  */
 import type { IndustryId } from "../industry";
+import type { BlindSpotId } from "./ids";
 
 /** Why the trap matters, ordered worst first. Mirrors the triage gates. */
 export type BlindSpotTier = "personal" | "money" | "operate" | "fine";
@@ -37,7 +38,7 @@ export interface BlindSpotSource {
 }
 
 export interface BlindSpot {
-  id: string;
+  id: BlindSpotId;
   tier: BlindSpotTier;
   title: string;
   /** What goes wrong, in two sentences or fewer. */
