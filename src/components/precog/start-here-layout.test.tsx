@@ -109,6 +109,43 @@ describe("Start here, Do these first on one screen", () => {
     expect(stepDestination({ answers: 0, control: { id: "split-one-duty-out" } })).toBeNull();
   });
 
+  it("keeps effort visible and folds each step's rationale and evidence", () => {
+    const html = renderToStaticMarkup(
+      <StartHereFirstStepsSection
+        model={model().firstSteps}
+        part="actions"
+        onOpenDetail={() => {}}
+      />,
+    );
+    expect(html).toContain("Start with this");
+    expect(html.match(/>Why this helps<\/summary>/g)).toHaveLength(steps.length);
+    for (const step of steps) {
+      const escaped = step.control.why.replaceAll("'", "&#x27;");
+      expect(html).toContain(escaped);
+    }
+    const firstDetails = html.indexOf("<details");
+    expect(html.indexOf("A day to set up")).toBeLessThan(firstDetails);
+    expect(html.indexOf(steps[0].control.why)).toBeGreaterThan(firstDetails);
+    expect(html).toMatch(/<details(?![^>]*\bopen)[^>]*><summary[^>]*>Why this helps/);
+    expect(html.match(/<button[^>]*bg-primary text-primary-fg/g)).toHaveLength(1);
+    expect(html).toContain("min-h-11");
+    expect(html).toMatch(/<span class="min-w-0 \[overflow-wrap:anywhere\]">Change/);
+  });
+
+  it("does not suggest or rank steps when no duty-conflict action is recorded", () => {
+    const html = renderToStaticMarkup(
+      <StartHereFirstStepsSection
+        model={{ ...model().firstSteps, items: [] }}
+        part="actions"
+        onOpenDetail={() => {}}
+      />,
+    );
+    expect(html).toContain("No actions from the duty conflicts recorded so far.");
+    expect(html).not.toContain("Start with one step");
+    expect(html).not.toContain("How these actions are ranked");
+    expect(html).not.toContain("data-step-id");
+  });
+
   it.each(INDUSTRIES.map((industry) => industry.id))(
     "%s: every visible and folded step has a label and click target matching its action",
     (industry) => {

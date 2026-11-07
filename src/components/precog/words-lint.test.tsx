@@ -142,7 +142,9 @@ describe("Start here's words", () => {
     const html = await startHereHtml();
     const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
     expect(header).toContain("Words used here");
-    const method = textOf(header.slice(header.indexOf("<details")));
+    const start = html.indexOf("How this works</summary>");
+    expect(start).toBeGreaterThan(html.indexOf("Do these first"));
+    const method = textOf(html.slice(start, html.indexOf("</details>", start)));
     expect(method).not.toMatch(/detective controls|Two headline figures/);
     expect(fkGrade(method.replace(/^How this works /, ""))).toBeLessThanOrEqual(8.5);
   });
