@@ -7,16 +7,66 @@
  * better off knowing both words for the same thing.
  */
 export const TAB_WORDS = [
-  { id: "start", label: "Start here", tactical: "Start here" },
-  { id: "team", label: "Team", tactical: "Team" },
-  { id: "sod", label: "Who controls what", tactical: "SoD" },
-  { id: "knowledge", label: "Who knows what", tactical: "Knowledge" },
-  { id: "procedures", label: "Procedures", tactical: "Procedures" },
-  { id: "monthly", label: "Monthly review", tactical: "Monthly review" },
-  { id: "map", label: "How work flows", tactical: "Process map" },
-  { id: "precog", label: "What could happen", tactical: "Scenarios" },
-  { id: "pioneer", label: "Ask Voyager", tactical: "Voyager" },
-  { id: "scores", label: "How Precog scores", tactical: "Scoring" },
+  {
+    id: "start",
+    label: "Start here",
+    tactical: "Start here",
+    description: "See where you stand and what to do next.",
+  },
+  {
+    id: "team",
+    label: "Team",
+    tactical: "Team",
+    description: "Keep people, roles and access up to date.",
+  },
+  {
+    id: "sod",
+    label: "Who controls what",
+    tactical: "SoD",
+    description: "Find who can move or hide money alone.",
+  },
+  {
+    id: "knowledge",
+    label: "Who knows what",
+    tactical: "Knowledge",
+    description: "Keep work moving when someone is away.",
+  },
+  {
+    id: "procedures",
+    label: "Procedures",
+    tactical: "Procedures",
+    description: "Write down how work gets done.",
+  },
+  {
+    id: "monthly",
+    label: "Monthly review",
+    tactical: "Monthly review",
+    description: "Record checks, evidence and decisions.",
+  },
+  {
+    id: "map",
+    label: "How work flows",
+    tactical: "Process map",
+    description: "Map the steps, people and checks in a process.",
+  },
+  {
+    id: "precog",
+    label: "What could happen",
+    tactical: "Scenarios",
+    description: "Explore what-ifs and their possible costs.",
+  },
+  {
+    id: "pioneer",
+    label: "Ask Voyager",
+    tactical: "Voyager",
+    description: "Ask a question about this business.",
+  },
+  {
+    id: "scores",
+    label: "How Precog scores",
+    tactical: "Scoring",
+    description: "Understand the figures and what is still exposed.",
+  },
 ] as const;
 
 export type TabId = (typeof TAB_WORDS)[number]["id"];

@@ -210,7 +210,13 @@ describe("parsePeopleCsv", () => {
     expect(csv.split(/\r?\n/)[0]).toBe(
       "name,employee_id,role,department,tenure_years,active,last_day,entitlements,owns_business,duties_from_title,household",
     );
-    const back = parsePeopleCsv(csv, { ...dental, people }).people;
+    const back = parsePeopleCsv(
+      csv,
+      { ...dental, people },
+      {
+        today: new Date("2026-09-30T12:00:00Z"),
+      },
+    ).people;
     expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
     expect("lastDay" in (back.find((p) => p.name === "Chris Diaz") ?? {})).toBe(false);
   });

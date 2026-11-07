@@ -1,13 +1,14 @@
 import {
-  Fragment,
   useEffect,
+  useId,
   useRef,
   useState,
   type ComponentType,
   type KeyboardEvent,
   type ReactNode,
+  type Ref,
 } from "react";
-import { ChevronDown, ExternalLink, MoreHorizontal } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, MoreHorizontal } from "lucide-react";
 import type { TabId } from "@/lib/precog/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ export interface ShellTab {
   id: TabId;
   label: string;
   tactical: string;
+  description: string;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 }
 
@@ -38,7 +40,7 @@ export function TabStrip({
   /** Pinned at the strip's right end, outside the tablist: menus, never tabs. */
   trailing?: ReactNode;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
-  /** Every tab, including the ones behind "Analyze" and in the header; the tab walk (scripts/e2e-tabs.mjs) checks it. */
+  /** Every tab, including the ones in All sections and the header. */
   tabCount: number;
 }) {
   const ref = useRef<HTMLElement | null>(null);
@@ -110,7 +112,7 @@ export function TabStrip({
   );
 }
 
-/** A place on another page that the Analyze menu links to, below its views. */
+/** A place on another page that All sections links to, below its views. */
 export interface ShellRouteLink {
   id: string;
   label: string;
@@ -127,7 +129,7 @@ export interface ShellRouteLink {
  * The right edge is taken from the frame's client width, which leaves out a
  * vertical scrollbar, where window.innerWidth includes it.
  */
-function fixedMenuPlace(trigger: HTMLElement): { top: number; right: number } {
+function fixedMenuPlace(trigger: HTMLElement): { top: number; right: number; maxHeight: number } {
   const box = trigger.getBoundingClientRect();
   let frame: HTMLElement | null = null;
   for (
@@ -158,19 +160,16 @@ function fixedMenuPlace(trigger: HTMLElement): { top: number; right: number } {
     frameTop = f.top + frame.clientTop;
     frameRight = f.left + frame.clientLeft + frame.clientWidth;
   }
-  return { top: box.bottom - frameTop + 4, right: Math.max(8, frameRight - box.right) };
+  return {
+    top: box.bottom - frameTop + 4,
+    right: Math.max(8, frameRight - box.right),
+    maxHeight: Math.max(44, window.innerHeight - box.bottom - 12),
+  };
 }
 
 /**
- * The advanced views behind one control. Pinned at the tab strip's right end
- * as a menu, not a tab: the tab it opens then appears in the strip as the
- * active tab, so the strip always shows where the reader is. Below a separator it
- * links to places on other pages (`data-route-link`), which are not tabs.
- *
- * With `sections` it is the phone's "All sections" menu (`data-sections-menu`):
- * below the `sm` breakpoint the strip shows only the open tab, and this menu
- * names every main section, then the Analyze views under their own caption,
- * so no section hides off the edge of a narrow screen.
+ * The complete directory at every width. Primary jobs stay first; planning
+ * tools and accountant links follow. The open section also appears as a tab.
  *
  * Keyboard: Enter, Space or ArrowDown on the button opens the menu on its
  * first item; ArrowUp, ArrowDown, Home and End move within it and never reach
@@ -186,7 +185,7 @@ export function MoreTabsMenu({
   links = [],
   onOpenLink,
 }: {
-  /** The main sections, listed first by name: the phone's "All sections" menu. */
+  /** The main sections, listed first. */
   sections?: readonly ShellTab[];
   tabs: readonly ShellTab[];
   activeId: TabId;
@@ -196,12 +195,16 @@ export function MoreTabsMenu({
   onOpenLink?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const allSections = sections.length > 0;
+  const menuId = useId();
   const menuTabs = [...sections, ...tabs];
+  const groups = [
+    { label: "Everyday work", tabs: sections, offset: 0 },
+    { label: "Explore and plan", tabs, offset: sections.length },
+  ];
   // The strip scrolls sideways, which would clip a menu hung below it, so the
   // menu is fixed-position, under its button. See fixedMenuPlace for why the
   // numbers are not plain window coordinates.
-  const [place, setPlace] = useState<{ top: number; right: number } | null>(null);
+  const [place, setPlace] = useState<ReturnType<typeof fixedMenuPlace> | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
@@ -293,8 +296,8 @@ export function MoreTabsMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        data-more-tabs={allSections ? undefined : true}
-        data-sections-menu={allSections ? true : undefined}
+        aria-controls={menuId}
+        data-sections-menu
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown" && !open) {
@@ -302,16 +305,9 @@ export function MoreTabsMenu({
             setOpen(true);
           }
         }}
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors pointer-coarse:min-h-11",
-          allSections
-            ? "border border-border text-fg hover:bg-elevated/60"
-            : tabs.some((t) => t.id === activeId)
-              ? "text-fg hover:bg-elevated/60"
-              : "text-muted hover:bg-elevated/60 hover:text-fg",
-        )}
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-fg transition-colors hover:bg-elevated/60"
       >
-        {allSections ? "All sections" : "Analyze"}
+        All sections
         <ChevronDown
           className={cn("size-3.5 transition-transform", open && "rotate-180")}
           aria-hidden
@@ -319,49 +315,41 @@ export function MoreTabsMenu({
       </button>
       {open && place && (
         <div
+          id={menuId}
           role="menu"
-          style={{ top: place.top, right: place.right }}
-          aria-label={allSections ? "All sections" : "Analyze views"}
+          style={place}
+          aria-label="All sections"
           onKeyDown={onMenuKeyDown}
-          className="fixed z-30 max-h-[calc(100dvh-8rem)] w-64 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-xl"
+          className="fixed z-30 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-1.5 shadow-xl"
         >
-          {menuTabs.map((t, i) => {
-            const Icon = t.icon;
-            return (
-              <Fragment key={t.id}>
-                {allSections && i === sections.length && tabs.length > 0 && (
-                  <>
-                    <div role="separator" className="my-1 border-t border-border" />
-                    <p
-                      role="presentation"
-                      className="px-2.5 pt-1 pb-0.5 text-xs font-medium tracking-wide text-subtle uppercase"
-                    >
-                      Analyze
-                    </p>
-                  </>
-                )}
-                <button
-                  ref={(el) => {
-                    itemRefs.current[i] = el;
-                  }}
-                  type="button"
-                  role="menuitem"
-                  tabIndex={-1}
-                  data-tab-id={t.id}
-                  aria-current={allSections && activeId === t.id ? "page" : undefined}
-                  onClick={() => pick(t.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-elevated focus:bg-elevated pointer-coarse:min-h-11",
-                    activeId === t.id ? "text-fg" : "text-muted hover:text-fg",
-                  )}
-                >
-                  <Icon className="size-4" aria-hidden />
-                  <span className="flex-1">{label(t)}</span>
-                </button>
-              </Fragment>
-            );
-          })}
+          {groups
+            .filter((group) => group.tabs.length > 0)
+            .map((group) => (
+              <div key={group.label} role="group" aria-label={group.label}>
+                <p aria-hidden className="px-2.5 pt-2 pb-1 text-xs font-medium text-subtle">
+                  {group.label}
+                </p>
+                {group.tabs.map((t, i) => (
+                  <SectionMenuItem
+                    key={t.id}
+                    tab={t}
+                    label={label(t)}
+                    active={activeId === t.id}
+                    descriptionId={`${menuId}-${t.id}`}
+                    itemRef={(el) => {
+                      itemRefs.current[group.offset + i] = el;
+                    }}
+                    onPick={() => pick(t.id)}
+                  />
+                ))}
+              </div>
+            ))}
           {links.length > 0 && <div role="separator" className="my-1 border-t border-border" />}
+          {links.length > 0 && (
+            <p role="presentation" className="px-2.5 pt-2 pb-1 text-xs font-medium text-subtle">
+              Accountant workspace
+            </p>
+          )}
           {links.map((link, i) => (
             <a
               key={link.id}
@@ -378,7 +366,7 @@ export function MoreTabsMenu({
                 setOpen(false);
                 onOpenLink(link.id);
               }}
-              className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated pointer-coarse:min-h-11"
+              className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated"
             >
               <ExternalLink className="size-4" aria-hidden />
               <span className="flex-1">{link.label}</span>
@@ -387,6 +375,50 @@ export function MoreTabsMenu({
         </div>
       )}
     </div>
+  );
+}
+
+export function SectionMenuItem({
+  tab,
+  label,
+  active,
+  descriptionId,
+  itemRef,
+  onPick,
+}: {
+  tab: ShellTab;
+  label: string;
+  active: boolean;
+  descriptionId: string;
+  itemRef?: Ref<HTMLButtonElement>;
+  onPick: () => void;
+}) {
+  const Icon = tab.icon;
+  return (
+    <button
+      ref={itemRef}
+      type="button"
+      role="menuitem"
+      tabIndex={-1}
+      data-tab-id={tab.id}
+      aria-label={label}
+      aria-describedby={descriptionId}
+      aria-current={active ? "page" : undefined}
+      onClick={onPick}
+      className={cn(
+        "flex min-h-11 w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left text-sm whitespace-normal hover:bg-elevated focus:bg-elevated",
+        active ? "bg-primary/10 text-fg" : "text-muted hover:text-fg",
+      )}
+    >
+      <Icon className={cn("size-4 shrink-0", active && "text-primary")} aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-fg">{label}</span>
+        <span id={descriptionId} className="mt-0.5 block text-xs leading-relaxed text-muted">
+          {tab.description}
+        </span>
+      </span>
+      {active && <Check className="size-4 shrink-0 text-primary" aria-hidden />}
+    </button>
   );
 }
 

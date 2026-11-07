@@ -11,7 +11,7 @@
  * Once, signed out, it also checks the header (Needs attention), the
  * phone strip ("All sections" names every main section), the
  * Monthly review tab, old tab ids in the address (?tab=journal, ?tab=layers,
- * ?tab=command, ?tab=value), the retired /threat page, the Analyze menu's
+ * ?tab=command, ?tab=value), the retired /threat page, the All sections menu's
  * links to the firm workspace, the tab count, and the home footer's Privacy
  * link.
  *
@@ -72,7 +72,7 @@ await withPage(options, async (page, errors) => {
         .catch(() => {});
 
     // The primary tabs sit in the strip; Ask Voyager is a header button; the
-    // rest are behind "Analyze".
+    // rest are behind "All sections".
     const primary = await page.locator('nav [role="tab"]').allInnerTexts();
     let lastLabel = "";
     for (let i = 0; i < primary.length; i++) {
@@ -82,17 +82,17 @@ await withPage(options, async (page, errors) => {
       await drain(`${industry}: tab "${label}"`);
       lastLabel = label;
     }
-    await page.locator("[data-more-tabs]").click();
+    await page.locator("[data-sections-menu]").click();
     // The menu is placed under its button after it opens; read it once it shows.
     await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
-    // Analyze views only: its links to other pages are checked once, below.
+    // Every section appears once; links to other pages are checked below.
     const advanced = await page
       .locator('[role="menu"] [role="menuitem"]:not([data-route-link])')
       .allInnerTexts();
     await page.keyboard.press("Escape");
     for (const text of advanced) {
       const label = text.trim().split("\n")[0];
-      await page.locator("[data-more-tabs]").click();
+      await page.locator("[data-sections-menu]").click();
       await page
         .locator('[role="menu"] [role="menuitem"]:not([data-route-link])', { hasText: label })
         .first()
@@ -101,13 +101,12 @@ await withPage(options, async (page, errors) => {
       await drain(`${industry}: tab "${label}"`);
       lastLabel = label;
     }
-    const headerTabs = await page.locator("[data-header-tab]").count();
     const expected = Number(
       await page.locator("nav[data-tab-count]").getAttribute("data-tab-count"),
     );
-    if (primary.length + advanced.length + headerTabs !== expected) {
+    if (advanced.length !== expected || new Set(advanced).size !== expected) {
       throw new Error(
-        `${industry}: expected ${expected} tabs, found ${primary.length} primary, ${advanced.length} under Analyze and ${headerTabs} in the header`,
+        `${industry}: expected ${expected} tabs, found ${primary.length} primary, ${advanced.length} in All sections`,
       );
     }
 
@@ -182,7 +181,7 @@ async function shellChecks(page) {
     await page.locator("nav[data-tab-count]").waitFor();
   };
 
-  // Ten tabs: five in the strip, four under Analyze, Ask Voyager in the header.
+  // Ten destinations in All sections; five keep strip shortcuts.
   await home();
   const tabCount = await page.locator("nav[data-tab-count]").getAttribute("data-tab-count");
   if (tabCount !== "10") throw new Error(`expected 10 tabs, data-tab-count is ${tabCount}`);
@@ -233,9 +232,9 @@ async function shellChecks(page) {
   await page.getByRole("heading", { name: "History", exact: true }).waitFor({ timeout });
 
   await home();
-  await page.locator("[data-more-tabs]").click();
+  await page.locator("[data-sections-menu]").click();
   await page.locator('[role="menu"] [data-route-link="value"]').click();
-  await valueProofInView("Analyze › Value proof");
+  await valueProofInView("All sections › Value proof");
 
   await home();
 
@@ -362,7 +361,7 @@ async function shellChecks(page) {
   await page.locator("#absences").waitFor({ timeout });
   await page.waitForFunction(() => document.activeElement?.id === "absences", null, { timeout });
 
-  // Needs attention lists its own items, and they never count as Analyze views.
+  // Needs attention lists its own items, and they never count as All sections views.
   await home();
   const attention = page.locator("[data-needs-attention]");
   let attentionItems = [];
@@ -377,13 +376,13 @@ async function shellChecks(page) {
       .locator('[role="menu"][aria-label="Needs attention"]')
       .waitFor({ state: "detached" });
   }
-  await page.locator("[data-more-tabs]").click();
+  await page.locator("[data-sections-menu]").click();
   await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
   const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
   await page.keyboard.press("Escape");
   const leaked = advanced.filter((text) => attentionItems.includes(text));
   if (leaked.length) {
-    throw new Error(`Needs attention items counted as Analyze views: ${leaked.join(", ")}`);
+    throw new Error(`Needs attention items counted as All sections views: ${leaked.join(", ")}`);
   }
 
   // On a phone the header is two rows: the business with Needs attention and

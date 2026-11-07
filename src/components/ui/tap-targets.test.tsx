@@ -45,16 +45,18 @@ describe("tap targets on a touch screen", () => {
     expect(classesOf(html, "nav")).toContain("pointer-coarse:[&_[role=tab]]:min-h-11");
   });
 
-  it("makes the Analyze trigger at least 44px tall", () => {
+  it("makes the All sections trigger at least 44px tall", () => {
     const html = renderToStaticMarkup(
       <MoreTabsMenu
-        tabs={[{ id: "map", label: "Map", tactical: "Map", icon: Home }]}
+        tabs={[
+          { id: "map", label: "Map", tactical: "Map", description: "Map the work.", icon: Home },
+        ]}
         activeId="map"
         label={(t) => t.label}
         onPick={() => {}}
       />,
     );
-    expect(classesOf(html, "button", "data-more-tabs")).toContain("pointer-coarse:min-h-11");
+    expect(classesOf(html, "button", "data-sections-menu")).toContain("min-h-11");
   });
 
   it("makes a tappable metric card at least 44px tall", () => {
