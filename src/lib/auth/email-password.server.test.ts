@@ -165,11 +165,10 @@ describe("stale unconfirmed sign-ups", () => {
       body: { email: "fresh@firm.example", password: "long-password-1", name: "Fresh" },
     });
     const context = await auth.$context;
-    const linked = await context.internalAdapter.createUser({
-      email: "linked@firm.example",
-      name: "Linked",
-      emailVerified: false,
-    });
+    const linked = await context.internalAdapter.createUser(
+      { email: "linked@firm.example", name: "Linked", emailVerified: false },
+      { method: "email-password" },
+    );
     await context.internalAdapter.linkAccount({
       userId: linked.id,
       providerId: "credential",
@@ -209,11 +208,10 @@ describe("auth email limit", () => {
   it("sends at most three of a kind per account an hour", { timeout: 60_000 }, async () => {
     const { sendAuthEmail } = await import("./email-password.server");
     const context = await auth.$context;
-    const user = await context.internalAdapter.createUser({
-      email: "flood@firm.example",
-      name: "Flood",
-      emailVerified: false,
-    });
+    const user = await context.internalAdapter.createUser(
+      { email: "flood@firm.example", name: "Flood", emailVerified: false },
+      { method: "email-password" },
+    );
     const send = vi.fn(async () => undefined);
     const message = { subject: "s", text: "t", html: "h" };
     const results = [];
@@ -229,11 +227,10 @@ describe("auth email limit", () => {
   it("reports a failed send and answers false", { timeout: 60_000 }, async () => {
     const { sendAuthEmail } = await import("./email-password.server");
     const context = await auth.$context;
-    const user = await context.internalAdapter.createUser({
-      email: "bounce@firm.example",
-      name: "Bounce",
-      emailVerified: false,
-    });
+    const user = await context.internalAdapter.createUser(
+      { email: "bounce@firm.example", name: "Bounce", emailVerified: false },
+      { method: "email-password" },
+    );
     const failure = new Error("Resend refused the request");
     const send = vi.fn(async () => {
       throw failure;
