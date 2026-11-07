@@ -17,9 +17,6 @@ import type { Person } from "../types";
 const dental = getIndustryTemplate("dental");
 const BOM = String.fromCharCode(0xfeff);
 
-/** Pinned so a last day in the fixture never drifts into a past year as the calendar moves. */
-const FIXED_TODAY = new Date("2026-09-30T12:00:00Z");
-
 describe("parsePeopleCsv", () => {
   it("handles aliases, quoted commas, CRLF, BOM, labels, aliases, unknowns, and inactive values", () => {
     const csv =
@@ -213,7 +210,11 @@ describe("parsePeopleCsv", () => {
     expect(csv.split(/\r?\n/)[0]).toBe(
       "name,employee_id,role,department,tenure_years,active,last_day,entitlements,owns_business,duties_from_title,household",
     );
-    const back = parsePeopleCsv(csv, { ...dental, people }, { today: FIXED_TODAY }).people;
+    const back = parsePeopleCsv(
+      csv,
+      { ...dental, people },
+      { today: new Date("2026-09-30T12:00:00Z") },
+    ).people;
     expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
     expect("lastDay" in (back.find((p) => p.name === "Chris Diaz") ?? {})).toBe(false);
   });

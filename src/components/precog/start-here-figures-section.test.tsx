@@ -114,6 +114,19 @@ describe("Start here's note that the business is saved on this device only", () 
 });
 
 describe("Start here order", () => {
+  it("keeps the method out of the initial task path and labels the overview", async () => {
+    auth.user = null;
+    const html = await startHere();
+    const header = html.slice(0, html.indexOf("</header>"));
+    expect(header).not.toContain("How this works");
+    expect(header).toContain("Words used here");
+    expect(html.indexOf("How this works")).toBeGreaterThan(html.indexOf("Do these first"));
+    expect(html).toContain('aria-label="At a glance"');
+    expect(html).toContain("lg:grid-cols-[minmax(0,1fr)_17rem]");
+    expect(html).not.toContain("border-warn/40 bg-warn/5");
+    expect(html).toContain("These gaps describe the sample team, not yours yet.");
+  });
+
   it("leads with the steps, then the conflict count, and parks the stand-in figure under Why we say this", async () => {
     auth.user = null;
     auth.isPending = false;

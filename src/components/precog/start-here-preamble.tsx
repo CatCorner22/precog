@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Info } from "lucide-react";
 import { toast } from "sonner";
 import { usePracticeActions } from "@/lib/precog/practice-context";
 import type { NavFn } from "@/lib/precog/navigation";
@@ -28,22 +28,23 @@ export function StartHerePreamble({
   return (
     <>
       {isSampleTeam && (
-        <div className="rounded-lg border border-warn/40 bg-warn/5 px-4 py-3">
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <p className="text-sm font-medium text-warn">
-              These gaps describe the sample team, not yours yet.
+            <p className="flex items-start gap-2 text-sm font-medium text-muted">
+              <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <span>These gaps describe the sample team, not yours yet.</span>
             </p>
             <button
               type="button"
               onClick={() => void enterOwnTeam()}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Enter your own team
               <ArrowRight className="size-3.5" aria-hidden />
             </button>
           </div>
           <details className="mt-1 text-xs leading-relaxed text-muted">
-            <summary className="cursor-pointer font-medium text-muted hover:text-fg">
+            <summary className="min-h-11 w-fit cursor-pointer content-center rounded-md font-medium text-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               Why the gaps are the sample&rsquo;s
             </summary>
             <p className="mt-1">
