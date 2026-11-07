@@ -34,26 +34,33 @@ export interface HeadcountBasis {
   band?: string;
 }
 
-/** The low end of a setup range such as "7-30" or "250+". */
-function bandFloor(band: string): number {
-  const n = Number.parseInt(band, 10);
-  return Number.isFinite(n) ? n : 0;
+/** The low and high ends of a setup range such as "7-30" or "250+" (no high end). */
+function bandBounds(band: string): { low: number; high?: number } {
+  const [lowText, highText] = band.split("-");
+  const low = Number.parseInt(lowText, 10);
+  const high = highText === undefined ? undefined : Number.parseInt(highText, 10);
+  return {
+    low: Number.isFinite(low) ? low : 0,
+    ...(high !== undefined && Number.isFinite(high) ? { high } : {}),
+  };
 }
 
 /**
- * People on payroll: the exact setup count when given; else the low end of
- * the setup range, if the mapped team is not larger; else the mapped team.
+ * People on payroll: the exact setup count or the mapped team, whichever is
+ * larger (a team that grew past its setup count counts as it is today); else
+ * the low end of the setup range, if the mapped team is not larger.
  */
 export function headcountBasis(profile: PracticeProfile): HeadcountBasis {
   const team = Math.max(0, Math.floor(profile.staff.teamSize));
   const facts = profile.onboardingFacts;
   const exact = facts?.workforceCount;
   if (typeof exact === "number" && Number.isFinite(exact) && exact > 0) {
-    return { count: Math.floor(exact), source: "setup" };
+    const count = Math.floor(exact);
+    return count >= team ? { count, source: "setup" } : { count: team, source: "team" };
   }
-  const floor = facts?.workforceBand ? bandFloor(facts.workforceBand) : 0;
-  if (facts?.workforceBand && floor > team) {
-    return { count: floor, source: "band", band: facts.workforceBand };
+  const bounds = facts?.workforceBand ? bandBounds(facts.workforceBand) : null;
+  if (bounds && facts?.workforceBand && bounds.low > team) {
+    return { count: bounds.low, source: "band", band: facts.workforceBand };
   }
   return { count: team, source: "team" };
 }
@@ -128,6 +135,14 @@ export function nextThresholdLine(selection: BlindSpotSelection): string | null 
   const next = selection.ahead[0];
   if (!next) return null;
   if (selection.headcountBand) {
+    const { high } = bandBounds(selection.headcountBand);
+    const inRange = selection.ahead.filter((t) => high === undefined || t.at <= high);
+    if (inRange.length > 0) {
+      const ats = inRange.map((t) => String(t.at));
+      const list =
+        ats.length === 1 ? ats[0] : `${ats.slice(0, -1).join(", ")} and ${ats[ats.length - 1]}`;
+      return `At ${headcountPhrase(selection)}, the rules at ${list} may already apply; the exact head count on setup tells which.`;
+    }
     return `At ${headcountPhrase(selection)}, the next rule starts at ${next.at}: ${next.rule}.`;
   }
   const gap = next.at - selection.headcount;

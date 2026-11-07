@@ -62,7 +62,7 @@ describe("Start here, Before it bites", () => {
       onboardingFacts: { schemaVersion: ONBOARDING_FACTS_VERSION, workforceBand: "7-30" },
     });
     expect(html).toContain(
-      "At 7 or more on payroll (7-30 at setup), the next rule starts at 8: Tennessee Human Rights Act.",
+      "At 7 or more on payroll (7-30 at setup), the rules at 8, 11, 15 and 20 may already apply; the exact head count on setup tells which.",
     );
     expect(html).toContain("Already in force at 7 or more on payroll (7-30 at setup):");
     expect(html).toContain("Setup recorded a range, so Precog uses its low end");

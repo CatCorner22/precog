@@ -20,6 +20,10 @@ describe("selectBlindSpots", () => {
     const dental = defaultProfile("dental");
     expect(headcountOf(dental)).toBe(dental.staff.teamSize);
     expect(headcountOf(withHeadcount(dental, 12))).toBe(12);
+    expect(headcountBasis(withHeadcount(dental, 2))).toEqual({
+      count: dental.staff.teamSize,
+      source: "team",
+    });
     const banded: PracticeProfile = {
       ...dental,
       onboardingFacts: { schemaVersion: ONBOARDING_FACTS_VERSION, workforceBand: "31-60" },
@@ -32,7 +36,7 @@ describe("selectBlindSpots", () => {
     expect(headcountBasis(smallBand).source).toBe("team");
     const sel = selectBlindSpots(banded);
     expect(nextThresholdLine(sel)).toBe(
-      "At 31 or more on payroll (31-60 at setup), the next rule starts at 50: Family and Medical Leave Act and the ACA employer mandate.",
+      "At 31 or more on payroll (31-60 at setup), the rules at 50 may already apply; the exact head count on setup tells which.",
     );
   });
 
@@ -52,12 +56,12 @@ describe("selectBlindSpots", () => {
     }
   });
 
-  it("holds the tip return back until a restaurant nears ten employees", () => {
+  it("shows every restaurant the tip return and tip credit notice", () => {
     const ids = (n: number) =>
       selectBlindSpots(withHeadcount(defaultProfile("restaurant"), n))
         .tiers.flatMap((t) => t.spots)
         .map((s) => s.spot.id);
-    expect(ids(4)).not.toContain("tipped-reporting");
+    expect(ids(4)).toContain("tipped-reporting");
     expect(ids(9)).toContain("tipped-reporting");
   });
 

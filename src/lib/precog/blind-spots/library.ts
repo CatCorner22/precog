@@ -101,7 +101,6 @@ export const BLIND_SPOTS: readonly BlindSpot[] = [
         url: "https://www.law.cornell.edu/cfr/text/29/2580.412-12",
       },
     ],
-    minHeadcount: 5,
   },
   {
     id: "personal-guarantees",
@@ -461,7 +460,6 @@ export const BLIND_SPOTS: readonly BlindSpot[] = [
       },
     ],
     industries: ["restaurant"],
-    minHeadcount: 8,
   },
   {
     id: "worker-classification",
