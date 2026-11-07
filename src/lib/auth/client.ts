@@ -5,7 +5,6 @@ import {
   finishIdentityChange,
   runExitCheck,
 } from "./identity-change";
-import { genericOAuthClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { GROK_PROVIDERS, type PopupMessage } from "./providers";
 
@@ -20,7 +19,6 @@ import { GROK_PROVIDERS, type PopupMessage } from "./providers";
  * is stored, so nothing changes.
  */
 export const authClient = createAuthClient({
-  plugins: [genericOAuthClient()],
   fetchOptions: {
     onRequest(ctx) {
       const token = getBearerToken();
@@ -110,8 +108,8 @@ export async function signIn(
   beginIdentityChange("signing-in");
   let url: string | undefined;
   try {
-    const { data, error } = await authClient.signIn.oauth2({
-      providerId,
+    const { data, error } = await authClient.signIn.social({
+      provider: providerId,
       callbackURL,
       errorCallbackURL,
     });

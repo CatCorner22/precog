@@ -104,7 +104,7 @@ export const emailVerificationOptions: Pick<
   },
 };
 
-const RELEASE_PATHS = new Set(["/sign-up/email", "/oauth2/callback/:providerId"]);
+const RELEASE_PATHS = new Set(["/sign-up/email", "/callback/:id"]);
 
 /**
  * The confirmation link lands on /login, which says the address is confirmed

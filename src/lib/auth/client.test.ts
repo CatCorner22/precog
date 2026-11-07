@@ -9,7 +9,7 @@ const fakeClient = {
   signOut: vi.fn(async () => ({ data: { success: true }, error: null })),
   getSession: vi.fn(async () => ({ data: null, error: null })),
   signIn: {
-    oauth2: vi.fn(
+    social: vi.fn(
       async (): Promise<{
         data: { url?: string } | null;
         error: { code?: string; message?: string } | null;
@@ -83,14 +83,14 @@ describe("signIn on a deployed site", () => {
     const { client, location } = await load("precog.example.com");
     await client.signIn("grok-google");
     expect(fakeClient.signOut).not.toHaveBeenCalled();
-    expect(fakeClient.signIn.oauth2).toHaveBeenCalledWith(
-      expect.objectContaining({ errorCallbackURL: "/login" }),
+    expect(fakeClient.signIn.social).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "grok-google", errorCallbackURL: "/login" }),
     );
     expect(location.href).toBe("https://broker.example/authorize");
   });
 
   it("rejects with a readable message and unlocks when the broker refuses to start", async () => {
-    fakeClient.signIn.oauth2.mockResolvedValueOnce({
+    fakeClient.signIn.social.mockResolvedValueOnce({
       data: null,
       error: { code: "oauth_init_failed_401" },
     });

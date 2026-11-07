@@ -70,11 +70,10 @@ describe("account linking", () => {
     async () => {
       const email = "verified@dental.example";
       const context = await auth.$context;
-      const user = await context.internalAdapter.createUser({
-        email,
-        name: "Verified owner",
-        emailVerified: true,
-      });
+      const user = await context.internalAdapter.createUser(
+        { email, name: "Verified owner", emailVerified: true },
+        { method: "email-password" },
+      );
 
       const { result } = await providerSignIn(email, "google-subject-2");
 
