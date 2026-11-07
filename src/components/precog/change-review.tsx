@@ -30,15 +30,15 @@ export function ChangeReviewCard() {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div>
+      <CardHeader className="flex-col items-start justify-between gap-4 sm:flex-row">
+        <div className="min-w-0">
           <CardTitle className="text-base">Change review</CardTitle>
           <CardDescription>
             What changed since you last accepted the team&apos;s duties. Accept it as the new
             baseline, or discard it.
           </CardDescription>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="secondary"
@@ -81,7 +81,10 @@ export function ChangeReviewCard() {
             </div>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {pendingChanges.slice(0, 12).map((change) => (
-                <div key={change.id} className="rounded-lg border border-border bg-elevated p-2.5">
+                <div
+                  key={change.id}
+                  className="min-w-0 rounded-lg border border-border bg-elevated p-2.5 [overflow-wrap:anywhere]"
+                >
                   <p className="text-xs font-medium">{change.personName}</p>
                   <p
                     className={cn(

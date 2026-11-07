@@ -344,75 +344,101 @@ export function TeamEditor({
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
-      <p className="text-xs text-muted">
-        A job title sets the person&apos;s usual duties, and the duty-conflict check reads them.
-        Pick the closest title, then adjust the duties.
-      </p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="sm" variant="secondary" onClick={() => csvInputRef.current?.click()}>
-          <Upload className="size-3.5" /> Import CSV
-        </Button>
-        <input
-          ref={csvInputRef}
-          type="file"
-          accept=".csv,text/csv"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) void importCsv(file);
-            event.target.value = "";
-          }}
-        />
-        <Button size="sm" variant="secondary" onClick={() => setShowPaste((v) => !v)}>
-          <Upload className="size-3.5" /> Paste roster
-        </Button>
-        <Button size="sm" variant="secondary" onClick={exportCsv}>
-          <Download className="size-3.5" /> Export CSV
-        </Button>
-        {importIssues.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setImportIssues([])}
-            className="text-xs text-subtle underline hover:text-fg"
-          >
-            Dismiss issues
-          </button>
-        )}
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold">Add a person</h3>
+        <p className="text-xs text-muted">
+          Pick a job title, then check the person&apos;s duties below. The title supplies the usual
+          duties until you change or confirm them.
+        </p>
       </div>
-      {showPaste && (
-        <div className="space-y-1.5 rounded-md border border-border bg-elevated px-2 py-1.5">
-          <p className="text-xs text-muted">
-            Paste a roster exported from Workday, SAP SuccessFactors, Oracle HCM, or your payroll
-            provider (header row included), or one person per line as{" "}
-            <span className="font-mono">Name, Title</span>. Common titles get their usual duties
-            from the catalog; check each person afterwards.
-          </p>
-          <textarea
-            className={cn(inputCls, "min-h-24 w-full font-mono text-xs")}
-            aria-label="Pasted roster"
-            value={paste}
-            onChange={(e) => setPaste(e.target.value)}
-            placeholder={
-              "Employee Name,Job Title,Department,Status\nAna Ruiz,Office Manager,Admin,Active"
-            }
-          />
-          <Button size="sm" onClick={importPaste} disabled={!paste.trim()}>
-            Import pasted roster
-          </Button>
-        </div>
-      )}
-      {importIssues.length > 0 && (
-        <div className="rounded-md border border-warn/30 bg-warn/5 px-2 py-1.5 text-xs">
-          <p className="font-medium text-warn">Import issues</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
-            {importIssues.slice(0, 8).map((issue, index) => (
-              <li key={`${issue.row}-${index}`}>
-                {issue.row === 0 ? "File" : `Row ${issue.row}`}: {issue.message}
-              </li>
+      <div className="grid gap-1.5 @sm:grid-cols-[1fr_1fr_64px]">
+        <input
+          className={inputCls}
+          aria-label="Name"
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <select
+          className={inputCls}
+          aria-label="Job title"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        >
+          <optgroup label="Roles in this line of business">
+            {roleOptions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
-          </ul>
+          </optgroup>
+          {(Object.keys(JOB_FAMILY_LABEL) as (keyof typeof JOB_FAMILY_LABEL)[]).map((family) => (
+            <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
+              {JOB_CATALOG.filter((j) => j.family === family).map((j) => (
+                <option key={j.id} value={`catalog:${j.id}`}>
+                  {j.title}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+          <option value="__custom">Other role…</option>
+        </select>
+        <input
+          className={inputCls}
+          type="number"
+          min={0}
+          max={60}
+          step={0.5}
+          value={tenure}
+          onChange={(e) => setTenure(e.target.value === "" ? "" : Number(e.target.value))}
+          aria-label="Years here (leave blank if unknown)"
+          placeholder="Years"
+          title="Years here — leave blank if unknown"
+        />
+      </div>
+      {catalogChoice && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted">
+            {catalogChoice.description} {catalogChoice.note} You can change the duties after you add
+            the person.
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input
+              className={cn(inputCls, "w-16")}
+              type="number"
+              min={1}
+              max={20}
+              value={howMany}
+              onChange={(e) => setHowMany(clamp(Number(e.target.value) || 1, 1, 20))}
+              aria-label="How many to add"
+            />
+            <Button size="sm" variant="secondary" onClick={addSeveral}>
+              <Plus className="size-3.5" /> Add {howMany} with placeholder names
+            </Button>
+          </div>
         </div>
       )}
+      {useCustom && (
+        <>
+          <input
+            className={inputCls}
+            aria-label="Job title"
+            placeholder="Job title"
+            value={customRole}
+            onChange={(e) => setCustomRole(e.target.value)}
+          />
+          <ChipPicker
+            label="Duties (the duty-conflict check reads these)"
+            options={DUTY_OPTIONS}
+            selected={entitlements}
+            onToggle={(id) => setEntitlements((cur) => toggleIn(cur, id as EntitlementId))}
+          />
+        </>
+      )}
+      <Button size="sm" onClick={add} disabled={!canAdd}>
+        <Plus className="size-3.5" /> Add a person
+      </Button>
+      <h3 className="border-t border-border pt-4 text-sm font-semibold">People listed</h3>
       <ul className="space-y-1">
         {people.map((p) => {
           const editing = editingId === p.id;
@@ -424,26 +450,27 @@ export function TeamEditor({
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span
-                  className="min-w-0 flex-[1_1_12rem] truncate"
+                  className="min-w-0 flex-[1_1_12rem]"
                   title={[p.name, p.role, p.department, p.employeeId && `ID ${p.employeeId}`]
                     .filter(Boolean)
                     .join(" · ")}
                 >
-                  <span className={cn("font-medium", p.active ? "text-fg" : "text-subtle")}>
+                  <span
+                    className={cn(
+                      "block font-medium [overflow-wrap:anywhere]",
+                      p.active ? "text-fg" : "text-subtle",
+                    )}
+                  >
                     {p.name}
                   </span>
-                  <span className="text-subtle"> · {p.role}</span>
-                  {p.department && (
-                    <span className="text-subtle"> · {joinWithAnd(personLocations(p))}</span>
-                  )}
-                  {p.householdKey && (
-                    <span className="text-subtle"> · household {p.householdKey}</span>
-                  )}
-                  {p.lastDay && (
-                    <span className="text-subtle"> · last day {formatDay(p.lastDay)}</span>
-                  )}
-                  {dutiesUnknown(p, roleTemplates) && (
-                    <span className="text-warn"> · needs duties</span>
+                  <span className="block text-subtle [overflow-wrap:anywhere]">
+                    {p.role}
+                    {p.department && ` · ${joinWithAnd(personLocations(p))}`}
+                    {p.householdKey && ` · household ${p.householdKey}`}
+                    {p.lastDay && ` · last day ${formatDay(p.lastDay)}`}
+                  </span>
+                  {p.active && dutiesUnknown(p, roleTemplates) && (
+                    <span className="block text-warn">Needs duties</span>
                   )}
                 </span>
                 {!p.active && (
@@ -556,93 +583,78 @@ export function TeamEditor({
           );
         })}
       </ul>
-      <div className="grid gap-1.5 @sm:grid-cols-[1fr_1fr_64px]">
-        <input
-          className={inputCls}
-          aria-label="Name"
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <select
-          className={inputCls}
-          aria-label="Job title"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        >
-          <optgroup label="Roles in this line of business">
-            {roleOptions.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </optgroup>
-          {(Object.keys(JOB_FAMILY_LABEL) as (keyof typeof JOB_FAMILY_LABEL)[]).map((family) => (
-            <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
-              {JOB_CATALOG.filter((j) => j.family === family).map((j) => (
-                <option key={j.id} value={`catalog:${j.id}`}>
-                  {j.title}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-          <option value="__custom">Other role…</option>
-        </select>
-        <input
-          className={inputCls}
-          type="number"
-          min={0}
-          max={60}
-          step={0.5}
-          value={tenure}
-          onChange={(e) => setTenure(e.target.value === "" ? "" : Number(e.target.value))}
-          aria-label="Years here (leave blank if unknown)"
-          placeholder="Years"
-          title="Years here — leave blank if unknown"
-        />
-      </div>
-      {catalogChoice && (
-        <div className="space-y-1.5">
-          <p className="text-xs text-muted">
-            {catalogChoice.description} {catalogChoice.note} You can change the duties after you add
-            the person.
-          </p>
+      <details className="rounded-md border-t border-border pt-2">
+        <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-primary">
+          Import or export team
+        </summary>
+        <div className="space-y-2 pb-2">
           <div className="flex flex-wrap items-center gap-1.5">
-            <input
-              className={cn(inputCls, "w-16")}
-              type="number"
-              min={1}
-              max={20}
-              value={howMany}
-              onChange={(e) => setHowMany(clamp(Number(e.target.value) || 1, 1, 20))}
-              aria-label="How many to add"
-            />
-            <Button size="sm" variant="secondary" onClick={addSeveral}>
-              <Plus className="size-3.5" /> Add {howMany} with placeholder names
+            <Button size="sm" variant="secondary" onClick={() => csvInputRef.current?.click()}>
+              <Upload className="size-3.5" /> Import CSV
             </Button>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importCsv(file);
+                event.target.value = "";
+              }}
+            />
+            <Button size="sm" variant="secondary" onClick={() => setShowPaste((v) => !v)}>
+              <Upload className="size-3.5" /> Paste roster
+            </Button>
+            <Button size="sm" variant="secondary" onClick={exportCsv}>
+              <Download className="size-3.5" /> Export CSV
+            </Button>
+            {importIssues.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setImportIssues([])}
+                className="text-xs text-subtle underline hover:text-fg"
+              >
+                Dismiss issues
+              </button>
+            )}
           </div>
+          {showPaste && (
+            <div className="space-y-1.5 rounded-md border border-border bg-elevated px-2 py-1.5">
+              <p className="text-xs text-muted">
+                Paste a roster exported from Workday, SAP SuccessFactors, Oracle HCM, or your
+                payroll provider (header row included), or one person per line as{" "}
+                <span className="font-mono">Name, Title</span>. Common titles get their usual duties
+                from the catalog; check each person afterwards.
+              </p>
+              <textarea
+                className={cn(inputCls, "min-h-24 w-full font-mono text-xs")}
+                aria-label="Pasted roster"
+                value={paste}
+                onChange={(e) => setPaste(e.target.value)}
+                placeholder={
+                  "Employee Name,Job Title,Department,Status\nAna Ruiz,Office Manager,Admin,Active"
+                }
+              />
+              <Button size="sm" onClick={importPaste} disabled={!paste.trim()}>
+                Import pasted roster
+              </Button>
+            </div>
+          )}
+          {importIssues.length > 0 && (
+            <div className="rounded-md border border-warn/30 bg-warn/5 px-2 py-1.5 text-xs">
+              <p className="font-medium text-warn">Import issues</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted">
+                {importIssues.slice(0, 8).map((issue, index) => (
+                  <li key={`${issue.row}-${index}`}>
+                    {issue.row === 0 ? "File" : `Row ${issue.row}`}: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-      )}
-      {useCustom && (
-        <>
-          <input
-            className={inputCls}
-            aria-label="Job title"
-            placeholder="Job title"
-            value={customRole}
-            onChange={(e) => setCustomRole(e.target.value)}
-          />
-          <ChipPicker
-            label="Duties (the duty-conflict check reads these)"
-            options={DUTY_OPTIONS}
-            selected={entitlements}
-            onToggle={(id) => setEntitlements((cur) => toggleIn(cur, id as EntitlementId))}
-          />
-        </>
-      )}
-      <Button size="sm" variant="secondary" onClick={add} disabled={!canAdd}>
-        <Plus className="size-3.5" /> Add a person
-      </Button>
+      </details>
     </div>
   );
 }
@@ -710,8 +722,8 @@ export function LeavingForm({
             ? `${person.name} keeps working and keeps their duties until then.`
             : `${person.name} stays on the list for history but no longer holds any duty or counts as a stand-in. ${
                 raisesCheck
-                  ? "Then check their pay and sign-ins below the team list."
-                  : "On your own business, a checklist of pay and sign-ins to remove then appears below the team list."
+                  ? "Then check their pay and sign-ins in the checklist on Team."
+                  : "On your own business, a checklist of pay and sign-ins to remove then appears on Team."
               }`}
       </p>
     </div>
