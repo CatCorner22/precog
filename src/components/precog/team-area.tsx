@@ -14,6 +14,7 @@ import { reassignOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-ow
 import { analyzeWorkload } from "@/lib/precog/builder/workload";
 import { usePracticeActions, usePracticeState } from "@/lib/precog/practice-context";
 import { tabLabel } from "@/lib/precog/navigation";
+import { teamSource } from "@/lib/precog/team-source";
 import { parseTeamFocus } from "@/lib/precog/start-here/layout";
 import { usePresentation } from "@/lib/precog/presentation";
 import { PageIntro } from "./page-intro";
@@ -55,42 +56,47 @@ export function TeamArea({ item = null }: { item?: string | null }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageIntro
-          tab="team"
-          purpose="Who works here and which money duties each person holds."
-          method={
-            <p>
-              {tabLabel("sod", say)}, {tabLabel("knowledge", say)} and the report all read this
-              list. A title from the role list brings that job&rsquo;s usual duties; change them to
-              match what each person really does. When someone leaves, press &ldquo;Left the
-              business&rdquo; and give their last day: their record stays in history without
-              counting as cover, and Precog lists their pay and sign-ins to check.
-            </p>
-          }
-        />
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-expanded={showJobs}
-          aria-controls="team-common-jobs"
-          onClick={() => setShowJobs((v) => !v)}
-        >
-          <BriefcaseBusiness className="size-4" aria-hidden />
-          Add a common job
-        </Button>
-      </div>
-      {showJobs && (
-        <div id="team-common-jobs" className="space-y-2">
-          <p className="text-sm text-muted">
-            Pick a title from the role list below to add people with that job&rsquo;s usual duties,
-            then change the duties to match what each person really does.
+      <PageIntro
+        tab="team"
+        purpose="Who works here and which money duties each person holds."
+        method={
+          <p>
+            {tabLabel("sod", say)}, {tabLabel("knowledge", say)} and the report all read this list.
+            A title from the role list brings that job&rsquo;s usual duties; change them to match
+            what each person really does. When someone leaves, press &ldquo;Mark as left&rdquo; and
+            give their last day: their record stays in history without counting as cover, and Precog
+            lists their pay and sign-ins to check.
           </p>
-          <JobCatalogSheet defaultOpen />
-        </div>
-      )}
+        }
+      />
+      {teamSource(profile) !== "sample" && <LeaverAccessList />}
       <Card>
+        <CardHeader className="flex flex-wrap items-start justify-between gap-3 sm:flex-row">
+          <div>
+            <CardTitle className="text-base">People</CardTitle>
+            <CardDescription>Check who is here and the duties each person holds.</CardDescription>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-expanded={showJobs}
+            aria-controls="team-common-jobs"
+            onClick={() => setShowJobs((v) => !v)}
+          >
+            <BriefcaseBusiness className="size-4" aria-hidden />
+            Add a common job
+          </Button>
+        </CardHeader>
         <CardContent className="p-4">
+          {showJobs && (
+            <div id="team-common-jobs" className="mb-4 space-y-2">
+              <p className="text-sm text-muted">
+                Pick a title from the role list below to add people with that job&rsquo;s usual
+                duties, then change the duties to match what each person really does.
+              </p>
+              <JobCatalogSheet defaultOpen />
+            </div>
+          )}
           <TeamEditor
             people={tpl.people}
             onChange={(next) => setCustomPeople(next)}
@@ -98,7 +104,7 @@ export function TeamArea({ item = null }: { item?: string | null }) {
           />
         </CardContent>
       </Card>
-      <LeaverAccessList explainOnSample />
+      {teamSource(profile) === "sample" && <LeaverAccessList explainOnSample />}
       <ChangeReviewCard />
       <Card>
         <CardHeader>

@@ -49,6 +49,31 @@ function render(team: Person[]) {
   );
 }
 
+describe("Team's primary path", () => {
+  it("offers add-person before the roster and keeps file tools in a closed secondary section", () => {
+    const html = render(people);
+    expect(html).toContain(">Add a person</h3>");
+    expect(html.indexOf('aria-label="Name"')).toBeLessThan(html.indexOf('data-person="p-ana"'));
+    expect(html).toMatch(
+      /<details(?![^>]* open)[^>]*><summary[^>]*>Import or export team<\/summary>/,
+    );
+    expect(html).toContain("Import CSV</button>");
+    expect(html).toContain("Paste roster</button>");
+    expect(html).toContain("Export CSV</button>");
+    expect(html.indexOf('data-person="p-cal"')).toBeLessThan(html.indexOf("Import or export team"));
+    expect(html).toContain('aria-label="Duties of Ana Ruiz"');
+  });
+
+  it("keeps names readable and reserves missing-duty prompts for active people", () => {
+    const html = render(people);
+    expect(html).toContain('class="block font-medium [overflow-wrap:anywhere] text-fg">Ana Ruiz');
+    expect(html).toContain('class="block text-warn">Needs duties</span>');
+    expect(
+      html.slice(html.indexOf('data-person="p-cal"'), html.indexOf("Import or export team")),
+    ).not.toMatch(/needs duties/i);
+  });
+});
+
 type Button = { props: { children: unknown; onClick: () => void; "aria-label"?: string } };
 function buttons(node: ReactNode): Button[] {
   if (Array.isArray(node)) return node.flatMap(buttons);
@@ -275,11 +300,11 @@ describe("Mark as left…", () => {
           onCancel={() => {}}
         />,
       );
-    expect(form()).toContain("Then check their pay and sign-ins below the team list.");
+    expect(form()).toContain("Then check their pay and sign-ins in the checklist on Team.");
     const sample = form(false);
     expect(sample).not.toContain("Then check their pay and sign-ins");
     expect(sample).toContain(
-      "On your own business, a checklist of pay and sign-ins to remove then appears below the team list.",
+      "On your own business, a checklist of pay and sign-ins to remove then appears on Team.",
     );
   });
 
