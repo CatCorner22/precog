@@ -63,6 +63,7 @@ import { usePortfolio, type SwitchResult } from "./use-portfolio";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { isMapCustomized, type DecisionInput } from "./profile-actions";
 import { makeProfileEdits } from "./practice-edits";
+import type { BlindSpotAnswer } from "./blind-spots/select";
 import { localDateKey } from "./dates";
 import type { Place, Procedure, ProcedureProof } from "./procedures/types";
 import type { VerifyingAccount } from "./procedures/lifecycle";
@@ -159,6 +160,8 @@ export interface PracticeActions {
    * removed: closes their checks and records each in the decisions log.
    */
   confirmLeaverAccess: (checkIds: string[]) => void;
+  /** Start here: the owner's answer to one blind-spot check. */
+  answerBlindSpot: (id: string, answer: BlindSpotAnswer) => void;
   /** Setup dialog: leave setup and go back to the business open before it, when there is one. */
   cancelSetup: () => Promise<void>;
   /** Map builder: replace the process map (null = back to industry template). */

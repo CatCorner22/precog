@@ -1,6 +1,7 @@
 import { normalizeInsuranceRecord } from "./scoring/insurance-record";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { isCalendarDate, localDateKey } from "./dates";
+import { normalizeBlindSpotAnswers, type BlindSpotRecord } from "./blind-spots/select";
 import { soleOwnerCriticalCount, type CoverageStatus } from "./continuity/coverage";
 import type { ContinuityStep } from "./decisions/follow-through";
 import { type DocumentationState } from "./continuity/documentation";
@@ -103,6 +104,8 @@ export interface PracticeProfile {
   plannedAbsences?: PlannedAbsence[];
   /** People who have left, and whether the owner has confirmed their pay and logins are stopped. */
   leaverAccessChecks?: LeaverAccessCheck[];
+  /** The owner's answers to the blind-spot checks on Start here. */
+  blindSpotAnswers?: BlindSpotRecord[];
   /** Pinned canvas positions for process nodes (from drag in build mode). */
   mapLayout?: Record<string, { x: number; y: number }>;
   /** User-saved process blocks for reuse in the map builder. */
@@ -463,6 +466,9 @@ export function normalizeProfile(
     ...(setupControlsWithdrawn.length > 0 ? { setupControlsWithdrawn } : {}),
     plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
     leaverAccessChecks: normalizeLeaverAccessChecks(parsed.leaverAccessChecks),
+    blindSpotAnswers: normalizeBlindSpotAnswers(parsed.blindSpotAnswers, (day) =>
+      isCalendarDate(day),
+    ),
     mapLayout: mapLayoutEntries(parsed.mapLayout),
     savedProcessBlocks: savedBlockEntries(parsed.savedProcessBlocks),
     mapHealthHistory: healthPointEntries(parsed.mapHealthHistory),

@@ -27,6 +27,7 @@ import {
   withIntegrationDriftSummary,
   withKnowledge,
   withLeaversConfirmed,
+  withBlindSpotAnswered,
   withMapHealth,
   withMapLayout,
   withMapVersion,
@@ -216,6 +217,10 @@ const CASES: Record<
     run: (e) => e.confirmLeaverAccess(["chk_1"]),
     expected: (p) => withLeaversConfirmed(p, ["chk_1"], TODAY),
   },
+  answerBlindSpot: {
+    run: (e) => e.answerBlindSpot("digital-keys", "not_yet"),
+    expected: (p) => withBlindSpotAnswered(p, "digital-keys", "not_yet", TODAY),
+  },
   setCustomProcesses: {
     run: (e) => e.setCustomProcesses((list) => list.slice(1)),
     expected: (p) => withProcesses(p, processesToEdit(p).slice(1)),
@@ -326,10 +331,10 @@ describe("makeProfileEdits", () => {
     vi.useRealTimers();
   });
 
-  it("returns the 32 edits of PracticeActions and nothing else", () => {
+  it("returns the 33 edits of PracticeActions and nothing else", () => {
     const { edits } = harness(defaultProfile("dental"));
     expect(Object.keys(edits).sort()).toEqual([...EDIT_NAMES].sort());
-    expect(EDIT_NAMES).toHaveLength(32);
+    expect(EDIT_NAMES).toHaveLength(33);
   });
 
   it.each(EDIT_NAMES)("%s dispatches what its profile-actions function returns", (name) => {

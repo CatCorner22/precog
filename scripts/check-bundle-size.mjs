@@ -229,6 +229,13 @@
  * gzipped in 138 chunks against main at 598ff91 (878.7 KB); the budget is
  * the next whole KB plus 2 KB of CI variation. The largest chunk stays
  * under 118 KB.
+ *
+ * 2026-11-07: raised to 919 KB for the Before it bites section on Start
+ * here (25 blind-spot entries with their checks, fixes and sources, the
+ * head-count thresholds, and the answer buttons). The build measures
+ * 916.7 KB gzipped in 138 chunks against main at 909 KB budget; the budget
+ * is the next whole KB plus 2 KB of CI variation. The largest chunk stays
+ * under 118 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -237,7 +244,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 909 * 1024,
+  totalGzipBytes: 919 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

@@ -72,6 +72,7 @@ const READ_ONLY_ACTIONS: PracticeActions = {
   completeOnboarding: noop,
   startOwnBusiness: noop,
   confirmLeaverAccess: noop,
+  answerBlindSpot: noop,
   cancelSetup: asyncNoop,
   setCustomProcesses: noop,
   setCustomPeople: noop,
