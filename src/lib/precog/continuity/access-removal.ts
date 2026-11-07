@@ -35,6 +35,8 @@ const KEYS: LeaverAccessItemKey = { id: "keys", short: "keys" };
 const EMAIL: LeaverAccessItemKey = { id: "email", short: "email" };
 /** Email together with other software, under the id "software". */
 const EMAIL_SOFTWARE: LeaverAccessItemKey = { id: "software", short: "email" };
+/** The accounts that own the business's name online: domain, DNS, email admin, listing. */
+const DIGITAL_KEYS: LeaverAccessItemKey = { id: "digital_keys", short: "domain and admin roles" };
 
 /**
  * What each line of business checks when someone leaves: a restaurant's safe
@@ -50,6 +52,7 @@ const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
     { id: "insurance", short: "insurance portals" },
     KEYS,
     EMAIL,
+    DIGITAL_KEYS,
   ],
   retail: [
     OFF_PAYROLL,
@@ -59,6 +62,7 @@ const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
     { id: "online_store", short: "online store" },
     { id: "keys", short: "store keys" },
     EMAIL,
+    DIGITAL_KEYS,
   ],
   professional_services: [
     OFF_PAYROLL,
@@ -68,6 +72,7 @@ const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
     { id: "agency", short: "tax agency access" },
     KEYS,
     EMAIL,
+    DIGITAL_KEYS,
   ],
   restaurant: [
     OFF_PAYROLL,
@@ -78,6 +83,7 @@ const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
     KEYS,
     { id: "ordering", short: "delivery apps" },
     EMAIL,
+    DIGITAL_KEYS,
   ],
   construction: [
     OFF_PAYROLL,
@@ -86,6 +92,7 @@ const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
     { id: "cards", short: "fuel cards" },
     { id: "equipment", short: "job site keys" },
     { id: "software", short: "project software" },
+    DIGITAL_KEYS,
   ],
   automotive: [
     OFF_PAYROLL,
@@ -95,6 +102,7 @@ const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
     { id: "parts", short: "parts accounts" },
     KEYS,
     EMAIL,
+    DIGITAL_KEYS,
   ],
   nonprofit: [
     OFF_PAYROLL,
@@ -104,8 +112,9 @@ const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
     { id: "giving", short: "online giving platform" },
     { id: "mail", short: "PO box" },
     EMAIL_SOFTWARE,
+    DIGITAL_KEYS,
   ],
-  general: [OFF_PAYROLL, BANK, PAYROLL_LOGIN, KEYS, EMAIL_SOFTWARE],
+  general: [OFF_PAYROLL, BANK, PAYROLL_LOGIN, KEYS, EMAIL_SOFTWARE, DIGITAL_KEYS],
 };
 
 /** The checklist's ids and short names for someone who has left this line of business. */
