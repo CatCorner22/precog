@@ -36,7 +36,7 @@ describe("selectBlindSpots", () => {
     expect(headcountBasis(smallBand).source).toBe("team");
     const sel = selectBlindSpots(banded);
     expect(nextThresholdLine(sel)).toBe(
-      "At 31 or more on payroll (31-60 at setup), the rules at 50 may already apply; the exact head count on setup tells which.",
+      "At 31 or more on payroll (31-60 at setup), the rules at 50 (Family and Medical Leave Act and the ACA employer mandate) may already apply; the exact head count on setup tells which.",
     );
   });
 

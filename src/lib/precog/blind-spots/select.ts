@@ -138,7 +138,7 @@ export function nextThresholdLine(selection: BlindSpotSelection): string | null 
     const { high } = bandBounds(selection.headcountBand);
     const inRange = selection.ahead.filter((t) => high === undefined || t.at <= high);
     if (inRange.length > 0) {
-      const ats = inRange.map((t) => String(t.at));
+      const ats = inRange.map((t) => `${t.at} (${t.rule})`);
       const list =
         ats.length === 1 ? ats[0] : `${ats.slice(0, -1).join(", ")} and ${ats[ats.length - 1]}`;
       return `At ${headcountPhrase(selection)}, the rules at ${list} may already apply; the exact head count on setup tells which.`;

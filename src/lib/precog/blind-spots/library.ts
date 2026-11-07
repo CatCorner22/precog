@@ -86,10 +86,10 @@ export const BLIND_SPOTS: readonly BlindSpot[] = [
     title: "Late 401(k) deposits are a prohibited transaction, not a late bill",
     why: "Employee deferrals must reach the plan as soon as they can be separated from company money; small plans get seven business days. Later than that is a prohibited transaction with an excise tax, and the plan needs a fidelity bond of at least 10 percent of its assets.",
     check:
-      "Do the deferrals from each payroll reach the plan within seven business days, and does the plan carry its fidelity bond?",
+      "Do the deferrals from each payroll reach the plan within seven business days, and, once anyone besides the owners is in the plan, does it carry its fidelity bond?",
     fix: [
       "Compare the payroll date with the plan deposit date for the last three payrolls.",
-      "Ask the plan provider for the bond certificate and its amount.",
+      "Ask the plan provider for the bond certificate and its amount; a plan that covers only the owners and their spouses needs no bond.",
     ],
     sources: [
       {
@@ -444,10 +444,10 @@ export const BLIND_SPOTS: readonly BlindSpot[] = [
     title: "More than ten employees means a tip return, and the tip credit needs notice",
     why: "A food or drink business that normally has more than ten employees files Form 8027 every year. Taking the tip credit requires telling each tipped employee in advance; without notice the credit is lost and back wages are owed.",
     check:
-      "Was Form 8027 filed last year, and does every tipped hire get the tip credit notice in writing?",
+      "Does every tipped hire get the tip credit notice in writing, and, once you usually have more than ten employees, was Form 8027 filed last year?",
     fix: [
       "Add the tip credit notice to the new-hire packet.",
-      "Put Form 8027 on the yearly calendar beside the W-2s.",
+      "Once you usually have more than ten employees, put Form 8027 on the yearly calendar beside the W-2s.",
     ],
     sources: [
       {
