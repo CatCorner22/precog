@@ -13,6 +13,7 @@ import { StartHereExposureSection } from "./start-here-exposure-section";
 import { StartHereFiguresSection } from "./start-here-figures-section";
 import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
 import { StartHereLimitsSection } from "./start-here-limits-section";
+import { StartHereBlindSpotsSection } from "./start-here-blind-spots-section";
 import { StartHerePreamble } from "./start-here-preamble";
 import { WHY_WE_SAY_THIS } from "@/lib/precog/start-here/layout";
 import { useStartHere } from "./use-start-here";
@@ -118,6 +119,7 @@ export function StartHere({
           </p>
         </aside>
       </div>
+      <StartHereBlindSpotsSection />
 
       <HowThisWorks
         summary={WHY_WE_SAY_THIS}

@@ -6,6 +6,7 @@ import type {
   StaffComposition,
 } from "./types";
 import { mergeStaffIntoVariables, type RiskVariableState } from "./scoring/dynamic-variables";
+import { withBlindSpotAnswer, type BlindSpotAnswer } from "./blind-spots/answers";
 import {
   mergeDualReleasePolicy,
   mitigatedSodRuleIds,
@@ -355,6 +356,18 @@ export function withLeaversConfirmed(
     leaverAccessChecks: checks,
     decisions: withinDecisionCap([...decisions, ...p.decisions], p.industry),
   };
+}
+
+/** The owner's answer to one blind-spot check, replacing an earlier answer. */
+export function withBlindSpotAnswered(
+  p: PracticeProfile,
+  id: string,
+  answer: BlindSpotAnswer,
+  today: string,
+): PracticeProfile {
+  const next = withBlindSpotAnswer(p.blindSpotAnswers ?? [], id, answer, today);
+  if (next.length === (p.blindSpotAnswers ?? []).length && !next.some((r) => r.id === id)) return p;
+  return { ...p, blindSpotAnswers: next };
 }
 
 // ── Team, map and register ─────────────────────────────────────────────────
