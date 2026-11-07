@@ -62,7 +62,7 @@ describe("Start here, Before it bites", () => {
       onboardingFacts: { schemaVersion: ONBOARDING_FACTS_VERSION, workforceBand: "7-30" },
     });
     expect(html).toContain(
-      "At 7 or more on payroll (7-30 at setup), the rules at 8 (Tennessee Human Rights Act), 11 (OSHA injury log and the 300A posted February 1 to April 30), 15 (Title VII and the Americans with Disabilities Act) and 20 (Age discrimination (ADEA) and COBRA continuation) may already apply; the exact head count on setup tells which.",
+      "At 7 or more on payroll (7-30 at setup), the rules at 8 (Tennessee Human Rights Act, Tennessee), 11 (OSHA injury log and the 300A posted February 1 to April 30), 15 (Title VII and the Americans with Disabilities Act) and 20 (Age discrimination (ADEA) and COBRA continuation) may already apply; the exact head count on setup tells which.",
     );
     expect(html).toContain("Already in force at 7 or more on payroll (7-30 at setup):");
     expect(html).toContain("Setup recorded a range, so Precog uses its low end");

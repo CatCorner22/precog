@@ -86,7 +86,7 @@ export const BLIND_SPOTS: readonly BlindSpot[] = [
     title: "Late 401(k) deposits are a prohibited transaction, not a late bill",
     why: "Employee deferrals must reach the plan as soon as they can be separated from company money; small plans get seven business days. Later than that is a prohibited transaction with an excise tax, and the plan needs a fidelity bond of at least 10 percent of its assets.",
     check:
-      "Do the deferrals from each payroll reach the plan within seven business days, and, once anyone besides the owners is in the plan, does it carry its fidelity bond?",
+      "Do the deferrals from each payroll reach the plan within seven business days, and, once anyone besides the owners and their spouses is in the plan, does it carry its fidelity bond?",
     fix: [
       "Compare the payroll date with the plan deposit date for the last three payrolls.",
       "Ask the plan provider for the bond certificate and its amount; a plan that covers only the owners and their spouses needs no bond.",
