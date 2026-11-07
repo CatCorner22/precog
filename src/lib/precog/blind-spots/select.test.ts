@@ -48,7 +48,10 @@ describe("selectBlindSpots", () => {
 
   it("splits the thresholds into crossed and ahead and names the next one", () => {
     const sel = selectBlindSpots(withHeadcount(defaultProfile("general"), 12));
-    expect(sel.crossed.map((t) => t.at)).toEqual([11, 8, 5, 1]);
+    expect(sel.crossed.map((t) => t.at)).toEqual([11, 8, 5]);
+    expect(
+      selectBlindSpots(withHeadcount(defaultProfile("construction"), 12)).crossed.map((t) => t.at),
+    ).toEqual([11, 8, 5, 1]);
     expect(sel.ahead.map((t) => t.at)).toEqual([15, 20, 50]);
     expect(nextThresholdLine(sel)).toBe(
       "At 12 on payroll, 3 more hires switches on: Title VII and the Americans with Disabilities Act.",

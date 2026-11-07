@@ -580,10 +580,17 @@ export interface HeadcountThreshold {
   at: number;
   rule: string;
   region?: "Tennessee";
+  /** Only these lines of business meet it; absent = every business. */
+  industries?: readonly IndustryId[];
 }
 
 export const HEADCOUNT_THRESHOLDS: readonly HeadcountThreshold[] = [
-  { at: 1, rule: "Workers' compensation for every construction employer", region: "Tennessee" },
+  {
+    at: 1,
+    rule: "Workers' compensation for every construction employer",
+    region: "Tennessee",
+    industries: ["construction"],
+  },
   { at: 5, rule: "Workers' compensation insurance", region: "Tennessee" },
   { at: 8, rule: "Tennessee Human Rights Act", region: "Tennessee" },
   { at: 11, rule: "OSHA injury log and the 300A posted February 1 to April 30" },

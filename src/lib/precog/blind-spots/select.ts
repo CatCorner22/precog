@@ -74,11 +74,14 @@ export function selectBlindSpots(profile: PracticeProfile): BlindSpotSelection {
   const handled = count("handled");
   const notYet = count("not_yet");
   const unsure = count("unsure");
+  const thresholds = HEADCOUNT_THRESHOLDS.filter(
+    (t) => !t.industries || t.industries.includes(profile.industry),
+  );
   return {
     headcount,
     tiers,
-    crossed: HEADCOUNT_THRESHOLDS.filter((t) => t.at <= headcount).sort((a, b) => b.at - a.at),
-    ahead: HEADCOUNT_THRESHOLDS.filter((t) => t.at > headcount).sort((a, b) => a.at - b.at),
+    crossed: thresholds.filter((t) => t.at <= headcount).sort((a, b) => b.at - a.at),
+    ahead: thresholds.filter((t) => t.at > headcount).sort((a, b) => a.at - b.at),
     counts: { total: all.length, handled, notYet, unsure, open: all.length - handled },
   };
 }
