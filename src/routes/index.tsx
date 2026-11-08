@@ -8,7 +8,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useBlocker } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { canLeaveForm } from "@/lib/precog/form-navigation";
 import {
@@ -104,6 +104,14 @@ function Home() {
   // A raw route alias (`?tab=value`) can sit here for the instant before the
   // redirect; anything that is not a tab opens Start here.
   const tab: TabId = isTabId(search.tab) ? search.tab : "start";
+  useBlocker({
+    shouldBlockFn: ({ current, next }) =>
+      (current.pathname !== next.pathname ||
+        ("tab" in current.search ? current.search.tab : undefined) !==
+          ("tab" in next.search ? next.search.tab : undefined)) &&
+      !canLeaveForm(),
+    enableBeforeUnload: false,
+  });
   const item = search.item ?? null;
   const build = search.build ?? false;
   const activeExtra = TABS.find((t) => t.id === tab && !PRIMARY_TAB_IDS.includes(t.id)) ?? null;
@@ -174,7 +182,6 @@ function Home() {
         if (import.meta.env.DEV) console.warn(`No tab named "${target}"`);
         return;
       }
-      if (("href" in landing || landing.tab !== tab) && !canLeaveForm()) return;
       if ("href" in landing) {
         void navigate({ href: landing.href });
         return;
