@@ -269,10 +269,12 @@ describe("history", () => {
   }
 
   it("counts the industry template's people and processes when a version has no custom lists", async () => {
-    const tpl = getIndustryTemplate("dental");
+    const v1Input = input("user-a", "biz_1", null, "v1");
+    const tpl = getIndustryTemplate(v1Input.industry as "dental");
+    // The row's industry decides the template, as a restore does; the profile need not repeat it.
     await saveBusinessRevision(sql, {
-      ...input("user-a", "biz_1", null, "v1"),
-      profileJson: JSON.stringify({ practiceName: "v1", industry: "dental" }),
+      ...v1Input,
+      profileJson: JSON.stringify({ practiceName: "v1" }),
     });
     await ageAll(HISTORY_VERSION_WINDOW_MINUTES + 1);
     await saveBusinessRevision(sql, {

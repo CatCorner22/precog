@@ -478,6 +478,7 @@ async function pruneHistory(sql: Sql, userId: string, businessId: string): Promi
  * How many people or processes a saved profile has. A profile with no custom
  * list uses its industry template's, as resolveTemplate reads it; the SQL
  * returns null for that case, since it cannot see the template.
+ * The industry is the row's, as mergeProfile restores it, not the profile's.
  */
 function rosterCount(
   stored: number | string | null,
@@ -519,7 +520,7 @@ export async function listBusinessHistory(
   }>`
     select
       h.revision, h.name, h.saved_by, u.name as saved_by_name, h.saved_at,
-      h.profile->>'industry' as industry,
+      coalesce(h.industry, h.profile->>'industry') as industry,
       case when jsonb_typeof(h.profile->'customPeople') = 'array'
         then jsonb_array_length(h.profile->'customPeople') end as people_count,
       case when jsonb_typeof(h.profile->'customProcesses') = 'array'
