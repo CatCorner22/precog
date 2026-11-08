@@ -9,6 +9,7 @@ import {
   listControlExecutionChain,
   listControlExecutions,
 } from "./executions/store";
+import { monthlyEntryResult } from "./review-bridge";
 import { bridgeMonthlyReview, type SavedMonthlyReview } from "./review-bridge.server";
 
 const report = vi.hoisted(() => ({
@@ -399,5 +400,34 @@ describe("monthly review bridge to the control evidence log", () => {
     await expect(save()).resolves.toEqual(notWritten("bridge_failed"));
     expect(report.error).toHaveBeenCalledWith(failure, "monthly-review-bridge");
     expect(await logRows()).toHaveLength(0);
+  });
+
+  it("writes the missing entry when the owner retries after a failed bridge, without a second monthly result", async () => {
+    vi.mocked(executeControlCommand).mockRejectedValueOnce(new Error("Connection reset"));
+    const saved = review({ result: "exception" });
+    await store(saved);
+    expect(await bridgeMonthlyReview(db.sql, "owner", saved, TODAY)).toEqual(
+      notWritten("bridge_failed"),
+    );
+    expect(await logRows()).toHaveLength(0);
+
+    // The owner presses the same result again: the monthly log keeps one
+    // result and the bridge now writes the entry that failed.
+    await insertReviewEvent(db.sql, "owner", saved, "owner", true);
+    expect(await bridgeMonthlyReview(db.sql, "owner", saved, TODAY)).toEqual(written("recorded"));
+    const rows = await logRows();
+    expect(rows).toHaveLength(1);
+    expect(monthlyEntryResult(rows[0].record)).toBe("exception");
+    const [{ count }] = await db.sql<{ count: string }>`
+      select count(*)::text as count from review_events where user_id = 'owner' and business_id = 'biz_1'
+    `;
+    expect(count).toBe("1");
+
+    // A further identical retry changes nothing in either log.
+    await insertReviewEvent(db.sql, "owner", saved, "owner", true);
+    expect(await bridgeMonthlyReview(db.sql, "owner", saved, TODAY)).toEqual(
+      notWritten("already_recorded"),
+    );
+    expect(await logRows()).toHaveLength(1);
   });
 });
