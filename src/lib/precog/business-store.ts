@@ -9,6 +9,8 @@ import { assertEngagementOpen } from "./firm/engagement-store";
 import { loadEntitlements } from "./firm/entitlements.server";
 import { loadFirmFor, lockFirmMembershipWrite } from "./firm/store";
 import { randomHex } from "@/lib/web-crypto";
+import { isIndustryId } from "./industry";
+import { getIndustryTemplate } from "./templates";
 import {
   DELETED_RETENTION_DAYS,
   HISTORY_RETENTION_DAYS,
@@ -472,6 +474,20 @@ async function pruneHistory(sql: Sql, userId: string, businessId: string): Promi
   `;
 }
 
+/**
+ * How many people or processes a saved profile has. A profile with no custom
+ * list uses its industry template's, as resolveTemplate reads it; the SQL
+ * returns null for that case, since it cannot see the template.
+ */
+function rosterCount(
+  stored: number | string | null,
+  industry: string | null,
+  kind: "people" | "processes",
+): number {
+  if (stored !== null) return Number(stored);
+  return isIndustryId(industry) ? getIndustryTemplate(industry)[kind].length : 0;
+}
+
 export interface BusinessHistoryEntry {
   revision: number;
   name: string;
@@ -496,16 +512,18 @@ export async function listBusinessHistory(
     saved_by: string | null;
     saved_by_name: string | null;
     saved_at: string;
+    industry: string | null;
     people_count: number | string | null;
     process_count: number | string | null;
     decision_count: number | string | null;
   }>`
     select
       h.revision, h.name, h.saved_by, u.name as saved_by_name, h.saved_at,
+      h.profile->>'industry' as industry,
       case when jsonb_typeof(h.profile->'customPeople') = 'array'
-        then jsonb_array_length(h.profile->'customPeople') else 0 end as people_count,
+        then jsonb_array_length(h.profile->'customPeople') end as people_count,
       case when jsonb_typeof(h.profile->'customProcesses') = 'array'
-        then jsonb_array_length(h.profile->'customProcesses') else 0 end as process_count,
+        then jsonb_array_length(h.profile->'customProcesses') end as process_count,
       case when jsonb_typeof(h.profile->'decisions') = 'array'
         then jsonb_array_length(h.profile->'decisions') else 0 end as decision_count
     from business_history h
@@ -520,8 +538,8 @@ export async function listBusinessHistory(
     savedBy: r.saved_by,
     savedByName: r.saved_by_name,
     savedAt: toIsoTimestamp(r.saved_at),
-    peopleCount: Number(r.people_count ?? 0),
-    processCount: Number(r.process_count ?? 0),
+    peopleCount: rosterCount(r.people_count, r.industry, "people"),
+    processCount: rosterCount(r.process_count, r.industry, "processes"),
     decisionCount: Number(r.decision_count ?? 0),
   }));
 }
@@ -588,7 +606,7 @@ export async function listBusinessSummaries(
     select
       id, user_id, firm_user_id, name, industry, updated_at,
       case when jsonb_typeof(profile->'customProcesses') = 'array'
-        then jsonb_array_length(profile->'customProcesses') else 0 end as process_count,
+        then jsonb_array_length(profile->'customProcesses') end as process_count,
       case when jsonb_typeof(profile->'mapCompletenessHistory') = 'array'
         then profile->'mapCompletenessHistory'->-1->'score' end as health_score
     from businesses
@@ -601,7 +619,7 @@ export async function listBusinessSummaries(
     name: r.name,
     industry: r.industry,
     updatedAt: toIsoTimestamp(r.updated_at),
-    processCount: Number(r.process_count ?? 0),
+    processCount: rosterCount(r.process_count, r.industry, "processes"),
     healthScore:
       typeof r.health_score === "number" && Number.isFinite(r.health_score) ? r.health_score : null,
     ownerUserId: r.user_id,

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { getIndustryTemplate } from "./templates";
 import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import {
@@ -259,6 +260,28 @@ describe("loadActiveBusiness", () => {
 });
 
 describe("history", () => {
+  it("counts the industry template's people and processes when a version has no custom lists", async () => {
+    const tpl = getIndustryTemplate("dental");
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null, "v1"),
+      profileJson: JSON.stringify({ practiceName: "v1", industry: "dental" }),
+    });
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", 1, "v2"),
+      profileJson: JSON.stringify({
+        practiceName: "v2",
+        industry: "dental",
+        customPeople: [{ id: "p1" }],
+        customProcesses: [],
+      }),
+    });
+    await saveBusinessRevision(sql, input("user-a", "biz_1", 2, "v3"));
+    const [v2, v1] = await listBusinessHistory(sql, "user-a", "biz_1");
+    expect([v1?.peopleCount, v1?.processCount]).toEqual([tpl.people.length, tpl.processes.length]);
+    expect([v2?.peopleCount, v2?.processCount]).toEqual([1, 0]);
+    expect((await listBusinessSummaries(sql, "user-a"))[0]?.processCount).toBe(0);
+  });
+
   it("keeps the replaced version when another account saves, with who saved it", async () => {
     await sql`insert into firms (user_id, name) values ('user-a', 'Firm')`;
     await sql`insert into firm_members (firm_user_id, member_user_id) values ('user-a', 'user-b')`;
@@ -939,7 +962,11 @@ describe("listBusinessSummaries", () => {
       healthScore: 72,
       industry: "dental",
     });
-    expect(byId.get("biz_2")).toMatchObject({ processCount: 0, healthScore: null });
+    // No custom list means the dental template's processes are in use.
+    expect(byId.get("biz_2")).toMatchObject({
+      processCount: getIndustryTemplate("dental").processes.length,
+      healthScore: null,
+    });
     expect(byId.get("biz_3")).toMatchObject({ healthScore: null });
   });
 
