@@ -229,6 +229,12 @@
  * gzipped in 138 chunks against main at 598ff91 (878.7 KB); the budget is
  * the next whole KB plus 2 KB of CI variation. The largest chunk stays
  * under 118 KB.
+ *
+ * 2026-11-07: raised to 912 KB for the calm workspace: the left section rail
+ * draws every section tab and the Analyze links in the home route, 0.2 KB gz
+ * in routes. The build measures 909.2 KB gzipped against main at 4838ab5
+ * (909.0 KB); the budget is the next whole KB plus 2 KB of CI variation.
+ * The largest chunk stays under 118 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -237,7 +243,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 909 * 1024,
+  totalGzipBytes: 912 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

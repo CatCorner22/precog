@@ -390,10 +390,17 @@ async function shellChecks(page) {
       .locator('[role="menu"][aria-label="Needs attention"]')
       .waitFor({ state: "detached" });
   }
-  await page.locator("[data-more-tabs]").click();
-  await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
-  const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
-  await page.keyboard.press("Escape");
+  // The Analyze views: in the rail from 1024px wide, behind the menu below it.
+  const analyzeMenu = page.locator("[data-more-tabs]");
+  let advanced;
+  if (await analyzeMenu.isVisible()) {
+    await analyzeMenu.click();
+    await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
+    advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
+    await page.keyboard.press("Escape");
+  } else {
+    advanced = await page.locator('nav [role="tab"], nav [data-route-link]').allInnerTexts();
+  }
   const leaked = advanced.filter((text) => attentionItems.includes(text));
   if (leaked.length) {
     throw new Error(`Needs attention items counted as Analyze views: ${leaked.join(", ")}`);
