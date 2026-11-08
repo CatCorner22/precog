@@ -43,6 +43,7 @@ import type { Workspace } from "./workspace-context";
 import { withRosterLeavers } from "./profile-actions";
 import { localDateKey } from "./dates";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { canLeaveForm } from "./form-navigation";
 
 /** Whether a switch opened the business, and when not, what to tell the owner. */
 export type SwitchResult = { ok: true } | { ok: false; reason: string };
@@ -169,6 +170,7 @@ export function usePortfolio(input: {
         )
       )
         return { ok: true };
+      if (!canLeaveForm()) return { ok: false, reason: "Your unsaved form stays open." };
       setSwitching(true);
       try {
         if (!(await flushActive()))
@@ -267,6 +269,7 @@ export function usePortfolio(input: {
 
   const createBusiness = useCallback(
     async (industry: IndustryId, name?: string): Promise<SwitchResult> => {
+      if (!canLeaveForm()) return { ok: false, reason: "Your unsaved form stays open." };
       // A conflict on the outgoing business must not be lost behind the new
       // one: the banner stays up and the switch waits for the user's choice.
       if (saveConflictRef.current) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };

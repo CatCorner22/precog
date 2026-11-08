@@ -235,9 +235,12 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
+// 2026-11-08: Monthly review's status overview, safe draft navigation and
+// retry feedback measure 910.6 KB total (139 chunks). Allow 912 KB; the
+// 118 KB largest-chunk limit stays unchanged. No dependency was added.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 909 * 1024,
+  totalGzipBytes: 912 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

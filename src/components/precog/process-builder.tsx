@@ -118,6 +118,7 @@ export function ProcessBuilder({
   } = usePractice();
   const { downloadRecovery } = usePracticeSync();
   const processes = tpl.processes;
+  const [formReset, setFormReset] = useState(0);
   const [panels, setPanels] = useState<ReadonlySet<BuilderPanel>>(
     () => new Set(initialPanel ? [initialPanel] : []),
   );
@@ -665,6 +666,7 @@ export function ProcessBuilder({
               if (!window.confirm(`Restore "${v.name}"? Your current map goes into undo history.`))
                 return;
               restoreMapVersion(id);
+              setFormReset((current) => current + 1);
               toast.success(`Restored "${v.name}"`, { description: "Ctrl+Z to go back." });
             }}
             onDelete={deleteVersion}
@@ -752,6 +754,7 @@ export function ProcessBuilder({
           <ProcessForm
             key={selected.id}
             process={selected}
+            resetKey={formReset}
             all={processes}
             onChange={(patch) => update(selected.id, patch)}
             onDelete={() => removeProcess(selected.id)}

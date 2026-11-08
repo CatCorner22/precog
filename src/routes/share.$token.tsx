@@ -140,7 +140,8 @@ export function SharedMapView({
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{payload.businessName}</h1>
           <p className="mt-1 text-sm text-neutral-600">
             {payload.industryLabel} · {payload.people.length}-person {payload.teamLabel} ·{" "}
-            {payload.health.processCount} processes
+            {payload.health.processCount}{" "}
+            {payload.health.processCount === 1 ? "process" : "processes"}
           </p>
           <p className="mt-1 text-sm text-neutral-600">{sharedByLine(payload)}</p>
           {payload.note && (

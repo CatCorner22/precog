@@ -23,6 +23,13 @@ function typeAndCommit(process: ProcessNode, name: string) {
 }
 
 describe("process form text sync", () => {
+  it("discards pending text when a version restores unchanged saved fields", () => {
+    const text = initialFormText(original);
+    const pending = { ...text, fields: { ...text.fields, name: "Pending name" } };
+    const restored = syncFormText(pending, original, 1);
+    expect(restored.fields.name).toBe(original.name);
+    expect(commitFormText(restored.fields, original).patch).toEqual({});
+  });
   it("keeps the owner's own committed edit (no reset on the echo)", () => {
     const { text, process } = typeAndCommit(original, "Scheduling ZZ");
     expect(process.name).toBe("Scheduling ZZ");

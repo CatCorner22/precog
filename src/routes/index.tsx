@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { canLeaveForm } from "@/lib/precog/form-navigation";
 import {
   BookOpenCheck,
   CalendarCheck,
@@ -173,6 +174,7 @@ function Home() {
         if (import.meta.env.DEV) console.warn(`No tab named "${target}"`);
         return;
       }
+      if (("href" in landing || landing.tab !== tab) && !canLeaveForm()) return;
       if ("href" in landing) {
         void navigate({ href: landing.href });
         return;

@@ -11,6 +11,7 @@ import { textPatch, type ProcessTextFields } from "./process-text";
 
 /** The form's copy of the text fields, and what it last saw of the process. */
 interface FormText {
+  resetKey?: number;
   /** The fields as the owner sees them. */
   fields: ProcessTextFields;
   /** The process text the form last saw or wrote, as a comparable key. */
@@ -34,8 +35,8 @@ export const PROCESS_TEXT_LIMITS = {
 } as const;
 
 /** The form's starting copy for a process. */
-export function initialFormText(process: ProcessNode): FormText {
-  return { fields: processTextFields(process), seenKey: processTextKey(process) };
+export function initialFormText(process: ProcessNode, resetKey = 0): FormText {
+  return { fields: processTextFields(process), seenKey: processTextKey(process), resetKey };
 }
 
 /**
@@ -43,9 +44,11 @@ export function initialFormText(process: ProcessNode): FormText {
  * same object comes back when nothing changed outside, so a React state
  * holding it only updates when it must.
  */
-export function syncFormText(text: FormText, process: ProcessNode): FormText {
+export function syncFormText(text: FormText, process: ProcessNode, resetKey = 0): FormText {
   const key = processTextKey(process);
-  return key === text.seenKey ? text : { fields: processTextFields(process), seenKey: key };
+  return key === text.seenKey && resetKey === (text.resetKey ?? 0)
+    ? text
+    : initialFormText(process, resetKey);
 }
 
 /**

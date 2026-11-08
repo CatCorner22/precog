@@ -131,7 +131,9 @@ export function assessCoso(
   const unaddressedGaps = sodGaps.filter((c) => !c.residualRiskAccepted);
   const topScenario = ranked[0];
   const fraudDrivers = [
-    ...(sodGaps.length > 0 ? [count(sodGaps.length, "open duty conflict")] : []),
+    ...(sodGaps.length > 0
+      ? [`${count(sodGaps.length, "control record")} needing separate duties`]
+      : []),
     ...(staff.dualControlPayments ? [] : ["no dual payment control"]),
     ...(staff.independentBankRec ? [] : ["no independent bank reconciliation"]),
   ];
@@ -181,8 +183,8 @@ export function assessCoso(
           status: unaddressedGaps.length > 0 ? "gap" : "in_place",
           note:
             unaddressedGaps.length > 0
-              ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
-              : "Every duty conflict has a recorded residual-risk decision.",
+              ? `${count(unaddressedGaps.length, "control record")} needing separate duties without a recorded residual-risk decision.`
+              : "No control needing separate duties is missing a recorded residual-risk decision.",
         },
         {
           number: 4,
@@ -201,10 +203,10 @@ export function assessCoso(
           status: sodGaps.length === 0 ? "in_place" : "gap",
           note:
             sodGaps.length === 0
-              ? "No open duty conflict needs a residual-risk decision."
+              ? "No control needing separate duties needs a residual-risk decision."
               : residualAccepted.length > 0
                 ? "A residual-risk decision is recorded. A recorded decision is not a test of the control."
-                : "The business has not recorded a residual-risk decision on any duty conflict.",
+                : "The business has not recorded a residual-risk decision on any control needing separate duties.",
         },
       ],
       findings:
@@ -283,7 +285,7 @@ export function assessCoso(
         {
           id: "ra-fraud",
           label: fraudDrivers.length ? "Fraud risk drivers active" : "No fraud risk driver active",
-          detail: `${count(sodGaps.length, "open duty conflict")}; dual payment control ${staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation ${staff.independentBankRec ? "on" : "off"}.`,
+          detail: `${count(sodGaps.length, "control record")} needing separate duties; dual payment control ${staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation ${staff.independentBankRec ? "on" : "off"}.`,
           severity: fraudSeverity,
           link: { type: "sod" },
         },
@@ -307,8 +309,8 @@ export function assessCoso(
           number: 10,
           name: "Select control activities",
           status: sodGaps.length > 0 || openSevere.length > 0 ? "gap" : "in_place",
-          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}; ${count(openSevere.length, "open critical or high duty conflict")} on the duty map.${startersLeft}`,
-          plainNote: `Duties kept apart ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}; ${count(openSevere.length, "open critical or high duty conflict")} in the duty assignments.${startersLeft}`,
+          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "control record")} needing separate duties; ${count(openSevere.length, "open critical or high duty conflict")} on the duty map.${startersLeft}`,
+          plainNote: `Duties kept apart ${staff.segregationScore}/100 with ${count(sodGaps.length, "control record")} needing separate duties; ${count(openSevere.length, "open critical or high duty conflict")} in the duty assignments.${startersLeft}`,
         },
         {
           number: 11,
@@ -322,8 +324,8 @@ export function assessCoso(
           status: sodGaps.length === 0 ? "in_place" : "gap",
           note:
             sodGaps.length === 0
-              ? "No open duty conflict."
-              : "A sentence or a recorded residual-risk decision is not a tested control. Open duty conflicts remain untested.",
+              ? "No control record needs separate duties."
+              : "A sentence or a recorded residual-risk decision is not a tested control. Control records needing separate duties remain untested.",
         },
       ],
       findings: sodGaps.map((g) => ({
@@ -432,8 +434,8 @@ export function assessCoso(
           status: unaddressedGaps.length > 0 ? "gap" : "in_place",
           note:
             unaddressedGaps.length > 0
-              ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
-              : "Every duty conflict has a recorded residual-risk decision.",
+              ? `${count(unaddressedGaps.length, "control record")} needing separate duties without a recorded residual-risk decision.`
+              : "No control needing separate duties is missing a recorded residual-risk decision.",
         },
       ],
       findings: [
@@ -450,7 +452,7 @@ export function assessCoso(
         },
         {
           id: "mon-residual",
-          label: `${count(unaddressedGaps.length, "duty conflict")} without a residual-risk decision`,
+          label: `${count(unaddressedGaps.length, "control record")} needing separate duties without a residual-risk decision`,
           detail:
             "COSO expects the business to evaluate each duty conflict and then either fix it or accept it with a compensating design.",
           plainDetail:
