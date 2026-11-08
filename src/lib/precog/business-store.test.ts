@@ -260,12 +260,21 @@ describe("loadActiveBusiness", () => {
 });
 
 describe("history", () => {
+  /** Moves biz_1 and its kept versions `minutes` into the past, past the coalescing window. */
+  async function ageAll(minutes: number) {
+    await sql`update business_history set saved_at = saved_at - make_interval(mins => ${minutes})
+      where user_id = 'user-a' and business_id = 'biz_1'`;
+    await sql`update businesses set updated_at = updated_at - make_interval(mins => ${minutes})
+      where user_id = 'user-a' and id = 'biz_1'`;
+  }
+
   it("counts the industry template's people and processes when a version has no custom lists", async () => {
     const tpl = getIndustryTemplate("dental");
     await saveBusinessRevision(sql, {
       ...input("user-a", "biz_1", null, "v1"),
       profileJson: JSON.stringify({ practiceName: "v1", industry: "dental" }),
     });
+    await ageAll(HISTORY_VERSION_WINDOW_MINUTES + 1);
     await saveBusinessRevision(sql, {
       ...input("user-a", "biz_1", 1, "v2"),
       profileJson: JSON.stringify({
@@ -275,11 +284,14 @@ describe("history", () => {
         customProcesses: [],
       }),
     });
+    await ageAll(HISTORY_VERSION_WINDOW_MINUTES + 1);
     await saveBusinessRevision(sql, input("user-a", "biz_1", 2, "v3"));
     const [v2, v1] = await listBusinessHistory(sql, "user-a", "biz_1");
     expect([v1?.peopleCount, v1?.processCount]).toEqual([tpl.people.length, tpl.processes.length]);
     expect([v2?.peopleCount, v2?.processCount]).toEqual([1, 0]);
-    expect((await listBusinessSummaries(sql, "user-a"))[0]?.processCount).toBe(0);
+    expect((await listBusinessSummaries(sql, "user-a"))[0]?.processCount).toBe(
+      tpl.processes.length,
+    );
   });
 
   it("keeps the replaced version when another account saves, with who saved it", async () => {

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePractice, usePracticeSync } from "@/lib/precog/practice-context";
+import { count } from "@/lib/precog/text";
 import { getHistoryVersion, keepHistoryBeforeRestore, listHistory } from "@/lib/precog/firm/server";
 import type { BusinessHistoryEntry } from "@/lib/precog/business-store";
 import { historyRuleText } from "@/lib/precog/business-retention";
@@ -100,8 +101,10 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
                     Snapshot {e.revision} · {formatDayTime(e.savedAt)}
                   </p>
                   <p className="text-xs text-muted">
-                    Saved by {e.savedByName ?? "an account"} · {e.peopleCount} people ·{" "}
-                    {e.processCount} processes · {e.decisionCount} decisions
+                    Saved by {e.savedByName ?? "an account"} ·{" "}
+                    {count(e.peopleCount, "person", "people")} ·{" "}
+                    {count(e.processCount, "process", "processes")} ·{" "}
+                    {count(e.decisionCount, "decision")}
                   </p>
                 </div>
                 <Button
