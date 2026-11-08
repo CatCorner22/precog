@@ -262,6 +262,8 @@ describe("monthly review tells the owner where the result went", () => {
         .props.onClick();
       await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(2));
       expect(server.recordMonthlyReview.mock.calls[1][0].data.notes).toBe("Deposit missing");
+      expect(server.recordMonthlyReview.mock.calls[1][0].data.retry).toBe(true);
+      expect(practice.setMonthlyReviews).toHaveBeenCalledTimes(1);
       await vi.waitFor(() => expect(noteField(render(), BANK).props.value).toBe(""));
     },
   );

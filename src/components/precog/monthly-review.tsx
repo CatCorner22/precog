@@ -86,6 +86,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
   // Note drafts and the save under way, each by `draftKey(period, check)`.
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [pendingSaves, setPendingSaves] = useState<Record<string, string>>({});
   // Who did each check, by `draftKey`. Every check starts empty and waits for
   // its own choice: a pick carried over from another check could credit a
   // check to someone the owner never chose.
@@ -215,14 +216,18 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
     if (busy[draft]) return;
     const typedNote = noteOverride ?? notes[draft] ?? "";
     const note = noteOverride ?? notes[draft] ?? "";
-    const clearNote = () =>
+    const clearNote = () => {
+      setPendingSaves((current) => ({ ...current, [draft]: "" }));
       setNotes((current) =>
         (current[draft] ?? "") === typedNote ? { ...current, [draft]: "" } : current,
       );
+    };
     // The person picked for this check, never the suggested one.
     const pick = pickFor(draft);
     const ownerName = (pick.choice === SOMEONE_ELSE ? pick.other : pick.choice).trim();
     const input = { key, period, result, ownerName, notes: note };
+    const signature = JSON.stringify(input);
+    const retry = pendingSaves[draft] === signature;
     const problem = reviewSaveProblem(input);
     if (problem) {
       setProblems((current) => ({ ...current, [draft]: problem }));
@@ -231,14 +236,17 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
     setProblems((current) => ({ ...current, [draft]: "" }));
     setPicks((current) => ({ ...current, [draft]: pick }));
     if (noteOverride !== undefined) setNotes((current) => ({ ...current, [draft]: noteOverride }));
-    const trim = appendReview(records, input);
-    setMonthlyReviews((current) => recordReview(current, input));
-    if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
+    if (!retry) {
+      const trim = appendReview(records, input);
+      setMonthlyReviews((current) => recordReview(current, input));
+      if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
+    }
     if (!user || !profile.businessId) {
       clearNote();
       return;
     }
     setBusy((current) => ({ ...current, [draft]: true }));
+    setPendingSaves((current) => ({ ...current, [draft]: signature }));
     try {
       await recordMonthlyReview({
         data: {
@@ -249,6 +257,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           dueOn,
           result,
           notes: note,
+          retry,
           today: localDateKey(new Date()),
         },
       }).then((res) => {

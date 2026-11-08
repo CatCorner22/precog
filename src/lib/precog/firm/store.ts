@@ -1080,10 +1080,30 @@ export async function insertReviewEvent(
   ownerUserId: string,
   input: ReviewEventInput,
   recordedBy: string,
+  retry = false,
 ): Promise<void> {
   const { lockEngagementWriteAccess } = await import("./engagement-store");
   await inTransaction(sql, async (tx) => {
     await lockEngagementWriteAccess(tx, ownerUserId, input.businessId, recordedBy);
+    if (retry) {
+      const [latest] = await tx<
+        ReviewEventInput & { recorded_by: string; due_on: string | null; owner_name: string }
+      >`
+        select owner_name, due_on::text, result, notes, recorded_by from review_events
+        where user_id = ${ownerUserId} and business_id = ${input.businessId}
+          and period = ${input.period} and item_key = ${input.itemKey}
+        order by recorded_at desc, id desc limit 1
+      `;
+      if (
+        latest &&
+        latest.recorded_by === recordedBy &&
+        latest.owner_name === input.ownerName &&
+        latest.due_on === input.dueOn &&
+        latest.result === input.result &&
+        latest.notes === input.notes
+      )
+        return;
+    }
     await tx`
       insert into review_events (
         user_id, business_id, period, item_key, owner_name, due_on, result, notes, recorded_by
