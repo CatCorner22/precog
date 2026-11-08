@@ -808,7 +808,7 @@ export function ProcessMap({
         )}
 
         {vision === "predator" && (
-          <div className="mt-4 rounded-xl border border-border bg-black/40 p-3 predator-hud">
+          <div className="mt-4 rounded-xl border border-border bg-neutral-900 p-3 predator-hud">
             <div className="flex flex-wrap items-center gap-3 text-xs text-orange-100/90">
               <Scan className="size-4 text-orange-200" />
               <span className="font-semibold tracking-wide">Heat view</span>
@@ -835,7 +835,7 @@ export function ProcessMap({
         )}
 
         {vision === "terminator" && (
-          <div className="mt-4 rounded-xl border border-red-900/50 bg-black/50 p-3 text-xs">
+          <div className="mt-4 rounded-xl border border-red-900/50 bg-neutral-900 p-3 text-xs">
             <p className="font-semibold text-red-200">Priority view</p>
             <p className="mt-1 text-red-300/90">
               The aim is residual risk cut to a reasonable level, not to zero.{" "}

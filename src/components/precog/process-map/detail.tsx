@@ -41,8 +41,8 @@ export function VisionChip({
       className={cn(
         "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
         active && !accent && "border-primary/40 bg-primary/15 text-fg",
-        active && accent === "predator" && "border-orange-400/40 bg-orange-500/15 text-orange-100",
-        active && accent === "terminator" && "border-red-500/50 bg-red-600/20 text-red-200",
+        active && accent === "predator" && "border-orange-700/40 bg-orange-600/15 text-orange-900",
+        active && accent === "terminator" && "border-red-700/50 bg-red-600/15 text-red-900",
         !active && "border-border bg-elevated text-muted hover:text-fg",
       )}
     >
