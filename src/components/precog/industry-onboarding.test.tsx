@@ -172,7 +172,7 @@ describe("IndustryOnboarding, first render", () => {
       "These duties are starting points to review, not proof of anyone’s actual access.",
     );
     expect(text).toContain(
-      "You can continue with one person. Precog will assess that sole-owner setup; add the rest of your team later under Team for a fuller team assessment.",
+      "You can continue with one person. Precog will assess that one-person setup; add the rest of your team later under Team for a fuller team assessment.",
     );
     expect(html).toContain("<button");
     expect(text).toContain("Show me my gaps");

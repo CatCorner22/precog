@@ -138,7 +138,7 @@ describe("onePersonNote", () => {
   it("offers the one-person setup only while one person or nobody is named", () => {
     expect(onePersonNote(0)).toBe(ONE_PERSON_NOTE);
     expect(onePersonNote(1)).toBe(ONE_PERSON_NOTE);
-    // Priya named four people and still read "sole-owner setup".
+    // Priya named four people and still read "one-person setup".
     expect(onePersonNote(4)).toBeNull();
   });
 });

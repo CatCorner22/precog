@@ -222,7 +222,7 @@ export function cancelSetupConfirm(input: {
 }
 
 export const ONE_PERSON_NOTE =
-  "You can continue with one person. Precog will assess that sole-owner setup; add the rest of your team later under Team for a fuller team assessment.";
+  "You can continue with one person. Precog will assess that one-person setup; add the rest of your team later under Team for a fuller team assessment.";
 
 /** The one-person note under the team table, shown only while nobody or one person is named. */
 export function onePersonNote(namedCount: number): string | null {
