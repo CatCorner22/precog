@@ -61,7 +61,7 @@ function JoinPage() {
   }
 
   return (
-    <main className="matrix-grid flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] items-center justify-center p-6">
+    <main className="flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm">
         <p className="text-xs tracking-[0.2em] text-primary uppercase">Precog</p>
         {invite === "loading" ? (

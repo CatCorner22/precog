@@ -175,7 +175,7 @@ export function CoachResultView({
 
   return (
     <>
-      <section className="matrix-grid rounded-2xl border border-primary/30 bg-surface p-6">
+      <section className="rounded-2xl border border-primary/30 bg-surface p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2

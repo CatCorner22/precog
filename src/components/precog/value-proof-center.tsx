@@ -173,7 +173,7 @@ export function ValueProofCenter({ headingLevel = 1 }: { headingLevel?: 1 | 2 | 
 
   return (
     <div className="space-y-5">
-      <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Value proof</Badge>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
           <Heading className="text-xl font-semibold">

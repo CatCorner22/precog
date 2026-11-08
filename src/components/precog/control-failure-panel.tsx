@@ -80,7 +80,7 @@ export function ControlFailurePanel({
 
   return (
     <div className="space-y-4">
-      <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <Badge variant={report.mode === "failure" ? "accent" : "warn"}>
           {report.mode === "failure"
             ? "In place today — what happens if it stops"

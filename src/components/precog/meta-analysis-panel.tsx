@@ -58,7 +58,7 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
 
   return (
     <div className="space-y-4">
-      <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">What Precog can see</Badge>
           <Badge variant="primary">Inventory, not a score</Badge>

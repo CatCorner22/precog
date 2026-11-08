@@ -22,9 +22,11 @@ export interface ShellTab {
 }
 
 /**
- * Horizontal tab strip that tells the user there is more: a fade on whichever
- * edge still has hidden tabs, and the active tab scrolled into view so the
- * tabs past the viewport on a narrow screen are discoverable.
+ * The sections. Up to 1024px a horizontal tab strip that tells the user there
+ * is more: a fade on whichever edge still has hidden tabs, and the active tab
+ * scrolled into view so the tabs past the viewport on a narrow screen are
+ * discoverable. From 1024px a fixed left rail under the "Created with Grok"
+ * bar, listing every section; the fades and the trailing menu hide.
  */
 export function TabStrip({
   activeId,
@@ -81,7 +83,8 @@ export function TabStrip({
         // On a touch screen every tab is at least 44px tall.
         className={cn(
           "relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin] pointer-coarse:[&_[role=tab]]:min-h-11",
-          trailing && "pr-36 sm:pr-40",
+          "lg:fixed lg:top-[var(--grok-banner-h,0px)] lg:bottom-0 lg:left-0 lg:mx-0 lg:w-60 lg:max-w-none lg:flex-col lg:gap-0.5 lg:overflow-x-hidden lg:overflow-y-auto lg:border-r lg:border-border lg:bg-surface lg:px-3 lg:py-4",
+          trailing && "pr-36 sm:pr-40 lg:pr-3",
         )}
       >
         {children}
@@ -89,19 +92,19 @@ export function TabStrip({
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-bg to-transparent transition-opacity",
+          "pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-bg to-transparent transition-opacity lg:hidden",
           edges.left ? "opacity-100" : "opacity-0",
         )}
       />
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-bg to-transparent transition-opacity",
+          "pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-bg to-transparent transition-opacity lg:hidden",
           edges.right ? "opacity-100" : "opacity-0",
         )}
       />
       {trailing && (
-        <div className="pointer-events-none absolute top-0 right-0 bottom-3 flex items-center bg-bg pr-4 pl-2 sm:pr-6">
+        <div className="pointer-events-none absolute top-0 right-0 bottom-3 flex items-center bg-bg pr-4 pl-2 sm:pr-6 lg:hidden">
           <div className="pointer-events-none absolute inset-y-0 right-full w-8 bg-gradient-to-l from-bg to-transparent" />
           <div className="pointer-events-auto">{trailing}</div>
         </div>

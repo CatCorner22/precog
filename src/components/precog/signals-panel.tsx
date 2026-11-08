@@ -55,7 +55,7 @@ export function SignalsPanel({ onNavigate }: { onNavigate?: NavFn }) {
 
   return (
     <>
-      <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Signals</Badge>
           <Badge variant="primary">Rule-based · runs locally</Badge>

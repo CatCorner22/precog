@@ -256,7 +256,7 @@ export function AssessmentSnapshots({ headingLevel = 1 }: { headingLevel?: 1 | 2
 
   return (
     <div className="space-y-4">
-      <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
+      <section className="rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Versioned assessments</Badge>
         <Heading className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Archive className="size-5 text-primary" />
