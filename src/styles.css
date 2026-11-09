@@ -3,27 +3,28 @@
 @import "./components/precog/process-map/tactical.css";
 
 @theme {
-  --color-bg: #0a0b0d;
-  --color-surface: #12141a;
-  --color-elevated: #1a1d26;
-  --color-panel: #151820;
-  --color-fg: #e8eaef;
-  --color-muted: #8b92a5;
+  /* Calm workspace: paper, ink, one teal accent. Colour means status or action. */
+  --color-bg: #f6f7f8;
+  --color-surface: #ffffff;
+  --color-elevated: #f1f3f5;
+  --color-panel: #eaeef2;
+  --color-fg: #16202a;
+  --color-muted: #52606d;
   /* 4.5:1 or better on every panel colour, the selected card included. */
-  --color-subtle: #838ca2;
-  --color-border: #2a2f3d;
-  --color-border-strong: #3a4155;
-  --color-primary: #3d9cfd;
-  --color-primary-fg: #061018;
-  --color-accent: #5eead4;
-  --color-danger: #f87171;
-  --color-warn: #fbbf24;
-  --color-ok: #34d399;
+  --color-subtle: #5b6773;
+  --color-border: #dde2e7;
+  --color-border-strong: #c3cad2;
+  --color-primary: #0f766e;
+  --color-primary-fg: #ffffff;
+  --color-accent: #115e59;
+  --color-danger: #b42318;
+  --color-warn: #b54708;
+  --color-ok: #067647;
   --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 }
 
 @layer base {
@@ -31,7 +32,7 @@
     border-color: var(--color-border);
   }
   html {
-    color-scheme: dark;
+    color-scheme: light;
     /* The one scroll offset for anchor jumps and scrollIntoView: sections
        carry no own margin, so a target never stacks two offsets. The home
        page measures its sticky header into --home-header-h (it wraps taller
@@ -73,22 +74,8 @@
   }
 }
 
-/* Subtle scanline + grid for Matrix construct feel — restrained */
-.matrix-grid {
-  background-image:
-    linear-gradient(color-mix(in oklab, var(--color-primary) 6%, transparent) 1px, transparent 1px),
-    linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--color-primary) 6%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 32px 32px;
-}
-
 .glow-primary {
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent),
-    0 0 24px color-mix(in oklab, var(--color-primary) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 45%, transparent);
 }
 
 .tabular {
@@ -131,9 +118,9 @@
   stroke-width: 3;
 }
 
-/* ── React Flow chrome (minimap + controls) on the dark canvas ── */
+/* ── React Flow chrome (minimap + controls) on the paper canvas ── */
 .react-flow .react-flow__minimap {
-  background: rgba(21, 24, 32, 0.92);
+  background: color-mix(in oklab, var(--color-surface) 92%, transparent);
   border: 1px solid var(--color-border-strong);
   border-radius: 10px;
   overflow: hidden;
@@ -142,7 +129,7 @@
   background: transparent;
 }
 .react-flow .react-flow__controls {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(22, 32, 42, 0.12);
   border-radius: 8px;
   overflow: hidden;
 }

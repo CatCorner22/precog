@@ -81,8 +81,10 @@ export function buildGraph(
     },
     style: {
       width: 205,
-      border: `1px solid ${conflictedPeople.has(person.personId) ? "#f87171" : "#3d9cfd"}`,
-      borderColor: conflictedPeople.has(person.personId) ? "#f87171" : "#3d9cfd",
+      border: `1px solid ${conflictedPeople.has(person.personId) ? "var(--color-danger)" : "var(--color-primary)"}`,
+      borderColor: conflictedPeople.has(person.personId)
+        ? "var(--color-danger)"
+        : "var(--color-primary)",
       background: "#151820",
       color: "#e8eaef",
       whiteSpace: "pre-line",
@@ -123,7 +125,7 @@ export function buildGraph(
           animated: conflict,
           markerEnd: { type: MarkerType.ArrowClosed },
           style: {
-            stroke: conflict ? "#f87171" : "#3d9cfd",
+            stroke: conflict ? "var(--color-danger)" : "var(--color-primary)",
             strokeWidth: conflict ? 2.4 : 1,
             opacity: conflict ? 0.95 : 0.3,
           },

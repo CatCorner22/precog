@@ -59,7 +59,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
 
   return (
     <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_280px]">
-      <div className="min-w-0 overflow-x-auto rounded-xl border border-border bg-panel matrix-grid">
+      <div className="min-w-0 overflow-x-auto rounded-xl border border-border bg-panel">
         <svg
           viewBox={`0 0 ${MAP_WIDTH} ${layout.height}`}
           className="w-full min-w-[560px]"

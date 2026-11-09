@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { usePresentation, useTabName } from "@/lib/precog/presentation";
+import { usePresentation } from "@/lib/precog/presentation";
 import {
   DECISION_KIND_LABEL,
   DECISION_KIND_LABEL_PRINTED_V1,
@@ -85,7 +85,6 @@ export function DecisionJournal({
   headingLevel?: 1 | 2;
 }) {
   const Heading = headingLevel === 2 ? "h2" : "h1";
-  const tabName = useTabName();
   const { say } = usePresentation();
   const {
     profile,
@@ -241,9 +240,8 @@ export function DecisionJournal({
 
   return (
     <div className="space-y-4">
-      <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="accent">{tabName("journal")}</Badge>
-        <Heading className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <Heading className="flex items-center gap-2 text-xl font-semibold tracking-tight">
           <BookOpen className="size-5 text-primary" />
           Write it down or it did not happen
         </Heading>

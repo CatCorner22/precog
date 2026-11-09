@@ -22,6 +22,7 @@ import {
   Shield,
   Sparkles,
   Users,
+  ExternalLink,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -282,17 +283,55 @@ function Home() {
     onOpenLink: (id: string) => openTab(id),
   };
 
-  /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
+  /**
+   * One section tab, in strip and rail alike. `hiddenClass` says where the tab
+   * hides when it is not open: a phone shows the open tab only, the strip up
+   * to 1024px shows the main tabs, and the rail shows every section.
+   */
+  function sectionTab(t: ShellTab, hiddenClass: string) {
+    const Icon = t.icon;
+    const active = tab === t.id;
+    return (
+      <button
+        key={t.id}
+        id={`tab-${t.id}`}
+        type="button"
+        role="tab"
+        aria-selected={active}
+        aria-controls="tab-panel"
+        tabIndex={active ? 0 : -1}
+        onClick={() => openTab(t.id)}
+        data-active={active || undefined}
+        className={cn(
+          "shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors lg:w-full lg:justify-start",
+          active ? "inline-flex" : hiddenClass,
+          active
+            ? "border border-border bg-elevated text-fg lg:border-transparent"
+            : "text-muted hover:bg-elevated/60 hover:text-fg",
+        )}
+      >
+        <Icon className="size-4" aria-hidden />
+        {say(t.label, t.tactical)}
+        {t.id === "sod" && conflictBadge && <CountBadge {...conflictBadge} />}
+      </button>
+    );
+  }
+
+  /** Roving focus for the sections: arrow keys, Home, and End move between the tabs on screen. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
-    // The visible strip: the primary tabs plus the open Analyze or header tab,
-    // if any; a phone shows the open tab only, so the keys stay on it there.
-    const visible = (activeExtra ? [...PRIMARY_TABS, activeExtra] : PRIMARY_TABS).filter(
+    // The tabs on screen: a phone shows the open tab only, so the keys stay on
+    // it there; the strip shows the main tabs plus the open Analyze or header
+    // tab; the rail shows every section.
+    const headerExtra = activeExtra && !ANALYZE_TABS.includes(activeExtra) ? [activeExtra] : [];
+    const visible = [...PRIMARY_TABS, ...headerExtra, ...ANALYZE_TABS].filter(
       (t) => t.id === tab || document.getElementById(`tab-${t.id}`)?.offsetParent !== null,
     );
     const index = visible.findIndex((t) => t.id === tab);
     let next = index;
-    if (event.key === "ArrowRight") next = (index + 1) % visible.length;
-    else if (event.key === "ArrowLeft") next = (index - 1 + visible.length) % visible.length;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown")
+      next = (index + 1) % visible.length;
+    else if (event.key === "ArrowLeft" || event.key === "ArrowUp")
+      next = (index - 1 + visible.length) % visible.length;
     else if (event.key === "Home") next = 0;
     else if (event.key === "End") next = visible.length - 1;
     else return;
@@ -332,182 +371,188 @@ function Home() {
         >
           Skip to content
         </a>
-        <header
-          ref={headerRef}
-          className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur"
-        >
-          {/* On a phone the header is two rows: the business, Needs attention
-              and the account, then wording, save status and Ask Pioneer. */}
-          <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex sm:flex-wrap sm:px-6">
-            <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 sm:flex-none">
-              <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                <Eye className="size-4" aria-hidden />
-              </span>
-              <BusinessSwitcher />
-            </div>
-            <div className="col-start-2 row-start-1 flex max-w-[58vw] min-w-0 flex-wrap items-center justify-end gap-2 sm:order-3 sm:max-w-none">
-              <NeedsAttentionMenu compactOnPhone onOpen={(target, item) => openTab(target, item)} />
-              <SignedOut>
-                <Link to="/login" className={buttonClass({ variant: "secondary", size: "sm" })}>
-                  Sign in
-                </Link>
-              </SignedOut>
-              <SignedIn>
-                <UserButton />
-                <AccountDataControls />
-              </SignedIn>
-            </div>
-            <div className="col-span-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-nowrap">
-              <PresentationToggle />
-              <SyncStatusBadge compactOnPhone />
-              <HeaderActions
-                inline={
-                  <button
-                    type="button"
-                    data-header-tab="pioneer"
-                    aria-pressed={tab === "pioneer"}
-                    onClick={() => openTab("pioneer")}
-                    className={buttonClass({ variant: "secondary", size: "sm" })}
-                  >
-                    <MessageSquare className="size-3.5" aria-hidden />
-                    {tabLabel("pioneer", say)}
-                  </button>
-                }
-              />
-            </div>
-          </div>
-          <SignedIn>
-            <PaymentOverdueBanner variant="home" />
-            <DigestConsentPrompt />
-          </SignedIn>
-          <TabStrip
-            activeId={tab}
-            onKeyDown={onTabKeyDown}
-            tabCount={TABS.length}
-            trailing={
-              // On a phone the strip shows only the open tab, and "All
-              // sections" names every main section and Analyze view, so none
-              // sits off the edge. Wider screens keep every tab and Analyze.
-              <>
-                <div className="hidden sm:block">
-                  <MoreTabsMenu {...analyzeMenu} />
-                </div>
-                <div className="sm:hidden">
-                  <MoreTabsMenu {...analyzeMenu} sections={PRIMARY_TABS} />
-                </div>
-              </>
-            }
+        {/* From 1024px the sections sit in a fixed left rail (TabStrip), so the
+            header, banners and page start to its right. */}
+        <div className="lg:pl-60">
+          <header
+            ref={headerRef}
+            className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur lg:bg-bg lg:backdrop-blur-none"
           >
-            {[...PRIMARY_TABS, ...(activeExtra ? [activeExtra] : [])].map((t) => {
-              const Icon = t.icon;
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  id={`tab-${t.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-controls="tab-panel"
-                  tabIndex={active ? 0 : -1}
-                  onClick={() => openTab(t.id)}
-                  data-active={active || undefined}
-                  className={cn(
-                    "shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    // A phone shows the open tab only; "All sections" lists the rest.
-                    active ? "inline-flex" : "hidden sm:inline-flex",
-                    active
-                      ? "border border-border bg-elevated text-fg"
-                      : "text-muted hover:bg-elevated/60 hover:text-fg",
-                  )}
+            {/* On a phone the header is two rows: the business, Needs attention
+              and the account, then wording, save status and Ask Pioneer. */}
+            <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex sm:flex-wrap sm:px-6">
+              <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 sm:flex-none">
+                <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <Eye className="size-4" aria-hidden />
+                </span>
+                <BusinessSwitcher />
+              </div>
+              <div className="col-start-2 row-start-1 flex max-w-[58vw] min-w-0 flex-wrap items-center justify-end gap-2 sm:order-3 sm:max-w-none">
+                <NeedsAttentionMenu
+                  compactOnPhone
+                  onOpen={(target, item) => openTab(target, item)}
+                />
+                <SignedOut>
+                  <Link to="/login" className={buttonClass({ variant: "secondary", size: "sm" })}>
+                    Sign in
+                  </Link>
+                </SignedOut>
+                <SignedIn>
+                  <UserButton />
+                  <AccountDataControls />
+                </SignedIn>
+              </div>
+              <div className="col-span-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-nowrap">
+                <PresentationToggle />
+                <SyncStatusBadge compactOnPhone />
+                <HeaderActions
+                  inline={
+                    <button
+                      type="button"
+                      data-header-tab="pioneer"
+                      aria-pressed={tab === "pioneer"}
+                      onClick={() => openTab("pioneer")}
+                      className={buttonClass({ variant: "secondary", size: "sm" })}
+                    >
+                      <MessageSquare className="size-3.5" aria-hidden />
+                      {tabLabel("pioneer", say)}
+                    </button>
+                  }
+                />
+              </div>
+            </div>
+            <SignedIn>
+              <PaymentOverdueBanner variant="home" />
+              <DigestConsentPrompt />
+            </SignedIn>
+            <TabStrip
+              activeId={tab}
+              onKeyDown={onTabKeyDown}
+              tabCount={TABS.length}
+              trailing={
+                // On a phone the strip shows only the open tab, and "All
+                // sections" names every main section and Analyze view, so none
+                // sits off the edge. Up to 1024px the strip keeps every main tab
+                // and Analyze; from there the rail lists every section itself.
+                <>
+                  <div className="hidden sm:block">
+                    <MoreTabsMenu {...analyzeMenu} />
+                  </div>
+                  <div className="sm:hidden">
+                    <MoreTabsMenu {...analyzeMenu} sections={PRIMARY_TABS} />
+                  </div>
+                </>
+              }
+            >
+              {PRIMARY_TABS.map((t) => sectionTab(t, "hidden sm:inline-flex"))}
+              {activeExtra &&
+                !ANALYZE_TABS.includes(activeExtra) &&
+                sectionTab(activeExtra, "hidden")}
+              <p
+                role="presentation"
+                className="hidden px-3 pt-5 pb-1 text-xs font-medium tracking-wide text-subtle uppercase lg:block"
+              >
+                Analyze
+              </p>
+              {ANALYZE_TABS.map((t) => sectionTab(t, "hidden lg:inline-flex"))}
+              {analyzeMenu.links.map((link) => (
+                <a
+                  key={link.id}
+                  href={link.href}
+                  data-route-link={link.id}
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+                    event.preventDefault();
+                    openTab(link.id);
+                  }}
+                  className="hidden w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated/60 hover:text-fg lg:flex"
                 >
-                  <Icon className="size-4" aria-hidden />
-                  {say(t.label, t.tactical)}
-                  {t.id === "sod" && conflictBadge && <CountBadge {...conflictBadge} />}
-                </button>
-              );
-            })}
-          </TabStrip>
-        </header>
-        <SaveConflictBanner />
+                  <ExternalLink className="size-4" aria-hidden />
+                  {link.label}
+                </a>
+              ))}
+            </TabStrip>
+          </header>
+          <SaveConflictBanner />
 
-        <main id="main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-          <div id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-            {/* Keyed on the business, so switching businesses remounts every tab:
+          <main id="main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+            <div id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+              {/* Keyed on the business, so switching businesses remounts every tab:
                 no unsaved form input, import note or Power map baseline carries
                 from one business into another. */}
-            <TabErrorBoundary
-              key={profile.businessId ?? DEFAULT_BUSINESS_ID}
-              resetKey={tab}
-              onReset={() => openTab("start")}
-            >
-              <Suspense fallback={<TabLoading />}>
-                {tab === "start" && (
-                  <>
-                    {/* The business's own account invites its accountant's firm here;
+              <TabErrorBoundary
+                key={profile.businessId ?? DEFAULT_BUSINESS_ID}
+                resetKey={tab}
+                onReset={() => openTab("start")}
+              >
+                <Suspense fallback={<TabLoading />}>
+                  {tab === "start" && (
+                    <>
+                      {/* The business's own account invites its accountant's firm here;
                         the card loads only after sign-in and stays empty otherwise. */}
-                    {!noBusiness && !activeSummary?.shared && (
-                      <SignedIn>
-                        <Suspense fallback={null}>
-                          <YourAccountantCard
-                            key={activeId}
-                            businessId={activeId}
-                            businessName={profile.practiceName}
-                          />
-                        </Suspense>
-                      </SignedIn>
-                    )}
-                    <StartHere onOpenDetail={openTab} sod={sodReport} />
-                  </>
-                )}
-                {tab === "team" && <TeamArea item={item} />}
-                {tab === "map" && (
-                  <ProcessMap
-                    key={String(build)}
-                    initialProcessId={item}
-                    initialBuild={build !== false}
-                    initialPanel={build === "validate" ? "validate" : undefined}
-                    onNavigate={openTab}
-                  />
-                )}
-                {tab === "scores" && (
-                  <ScoresArea view={item} openTab={openTab} onNavigate={openDeepLink} />
-                )}
-                {tab === "monthly" && <MonthlyArea item={item} openTab={openTab} />}
-                {tab === "knowledge" && (
-                  <div className="space-y-4">
-                    <TabIntro id="knowledge" />
-                    <KnowledgeDrawing item={item} />
-                    <ContinuityPlanner initialKnowledgeId={item} />
-                  </div>
-                )}
-                {tab === "procedures" && (
-                  <div className="space-y-4">
-                    <TabIntro id="procedures" />
-                    <ProceduresPanel key={item ?? "list"} initialItem={item} />
-                  </div>
-                )}
-                {tab === "precog" && (
-                  <div className="space-y-4">
-                    <TabIntro id="precog" />
-                    <ScenarioRunner item={item} onNavigate={openTab} />
-                  </div>
-                )}
-                {tab === "sod" && (
-                  <SodPanel onNavigate={openTab} report={sodReport} initialView={item} />
-                )}
-                {pioneerHeld && (
-                  <div hidden={tab !== "pioneer"}>
-                    <PioneerCoach onNavigate={openTab} />
-                  </div>
-                )}
-              </Suspense>
-            </TabErrorBoundary>
-          </div>
-        </main>
-        <footer className="mx-auto max-w-7xl px-4 pb-8 sm:px-6">
-          <LegalFooter />
-        </footer>
+                      {!noBusiness && !activeSummary?.shared && (
+                        <SignedIn>
+                          <Suspense fallback={null}>
+                            <YourAccountantCard
+                              key={activeId}
+                              businessId={activeId}
+                              businessName={profile.practiceName}
+                            />
+                          </Suspense>
+                        </SignedIn>
+                      )}
+                      <StartHere onOpenDetail={openTab} sod={sodReport} />
+                    </>
+                  )}
+                  {tab === "team" && <TeamArea item={item} />}
+                  {tab === "map" && (
+                    <ProcessMap
+                      key={String(build)}
+                      initialProcessId={item}
+                      initialBuild={build !== false}
+                      initialPanel={build === "validate" ? "validate" : undefined}
+                      onNavigate={openTab}
+                    />
+                  )}
+                  {tab === "scores" && (
+                    <ScoresArea view={item} openTab={openTab} onNavigate={openDeepLink} />
+                  )}
+                  {tab === "monthly" && <MonthlyArea item={item} openTab={openTab} />}
+                  {tab === "knowledge" && (
+                    <div className="space-y-4">
+                      <TabIntro id="knowledge" />
+                      <KnowledgeDrawing item={item} />
+                      <ContinuityPlanner initialKnowledgeId={item} />
+                    </div>
+                  )}
+                  {tab === "procedures" && (
+                    <div className="space-y-4">
+                      <TabIntro id="procedures" />
+                      <ProceduresPanel key={item ?? "list"} initialItem={item} />
+                    </div>
+                  )}
+                  {tab === "precog" && (
+                    <div className="space-y-4">
+                      <TabIntro id="precog" />
+                      <ScenarioRunner item={item} onNavigate={openTab} />
+                    </div>
+                  )}
+                  {tab === "sod" && (
+                    <SodPanel onNavigate={openTab} report={sodReport} initialView={item} />
+                  )}
+                  {pioneerHeld && (
+                    <div hidden={tab !== "pioneer"}>
+                      <PioneerCoach onNavigate={openTab} />
+                    </div>
+                  )}
+                </Suspense>
+              </TabErrorBoundary>
+            </div>
+          </main>
+          <footer className="mx-auto max-w-7xl px-4 pb-8 sm:px-6">
+            <LegalFooter />
+          </footer>
+        </div>
       </div>
     </div>
   );
@@ -595,7 +640,9 @@ const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[
  * Five tabs carry the owner's jobs: where you stand, who works here, who
  * controls what, who knows what, and what to check each month. Procedures
  * open from Who knows what and also sit under Analyze, with how work flows,
- * what could happen, and how Precog scores. Ask Pioneer is a header button,
+ * what could happen, and how Precog scores. From 1024px wide every section
+ * sits in a left rail, the Analyze views under their own heading; narrower
+ * screens keep the strip and the Analyze or All sections menu. Ask Pioneer is a header button,
  * since a question can come up on any tab. Every tab keeps its id and deep
  * link, and older ids open the view they became (TAB_ALIASES) or the page
  * they moved to (ROUTE_ALIASES).

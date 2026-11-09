@@ -1,5 +1,4 @@
 import type { LucideIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -32,9 +31,9 @@ export function StatTile({
             {label}
           </div>
         ) : (
-          <Badge variant={tone}>{label}</Badge>
+          <p className="text-xs text-muted">{label}</p>
         )}
-        <p className="mt-2 text-2xl font-semibold tabular">{value}</p>
+        <p className={cn("mt-2 text-2xl font-semibold tabular", TONE_VALUE[tone])}>{value}</p>
         {hint && <p className="text-xs text-muted">{hint}</p>}
       </CardContent>
     </Card>
@@ -47,4 +46,12 @@ const TONE_TEXT: Record<StatTone, string> = {
   warn: "text-warn",
   ok: "text-ok",
   primary: "text-primary",
+};
+
+const TONE_VALUE: Record<StatTone, string> = {
+  default: "",
+  danger: "text-danger",
+  warn: "text-warn",
+  ok: "",
+  primary: "",
 };

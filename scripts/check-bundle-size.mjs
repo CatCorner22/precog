@@ -230,6 +230,12 @@
  * the next whole KB plus 2 KB of CI variation. The largest chunk stays
  * under 118 KB.
  *
+ * 2026-11-07: raised to 912 KB for the calm workspace: the left section rail
+ * draws every section tab and the Analyze links in the home route, 0.2 KB gz
+ * in routes. The build measures 909.2 KB gzipped against main at 4838ab5
+ * (909.0 KB); the budget is the next whole KB plus 2 KB of CI variation.
+ * The largest chunk stays under 118 KB.
+ *
  * 2026-11-07: raised to 912 KB for the two hard gates on duty conflicts
  * (money out, personal payroll liability): the gate words and the "Always
  * top tier" badge on the conflict card cost 0.4 KB gz. The build measures

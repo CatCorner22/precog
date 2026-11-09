@@ -71,8 +71,8 @@ await withPage(options, async (page, errors) => {
         .waitFor({ state: "detached", timeout: 15000 })
         .catch(() => {});
 
-    // The primary tabs sit in the strip; Ask Voyager is a header button; the
-    // rest are behind "Analyze".
+    // The tabs on screen: the main tabs, plus the Analyze views in the rail
+    // from 1024px wide. Ask Voyager is a header button.
     const primary = await page.locator('nav [role="tab"]').allInnerTexts();
     let lastLabel = "";
     for (let i = 0; i < primary.length; i++) {
@@ -82,24 +82,32 @@ await withPage(options, async (page, errors) => {
       await drain(`${industry}: tab "${label}"`);
       lastLabel = label;
     }
-    await page.locator("[data-more-tabs]").click();
-    // The menu is placed under its button after it opens; read it once it shows.
-    await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
-    // Analyze views only: its links to other pages are checked once, below.
-    const advanced = await page
-      .locator('[role="menu"] [role="menuitem"]:not([data-route-link])')
-      .allInnerTexts();
-    await page.keyboard.press("Escape");
-    for (const text of advanced) {
-      const label = text.trim().split("\n")[0];
-      await page.locator("[data-more-tabs]").click();
-      await page
-        .locator('[role="menu"] [role="menuitem"]:not([data-route-link])', { hasText: label })
-        .first()
-        .click();
-      await settle();
-      await drain(`${industry}: tab "${label}"`);
-      lastLabel = label;
+    // Below 1024px the Analyze views sit behind a menu; a wider screen lists
+    // them in the rail, where the walk above already opened them.
+    const more = page.locator("[data-more-tabs]");
+    const advanced = [];
+    if (await more.isVisible()) {
+      await more.click();
+      // The menu is placed under its button after it opens; read it once it shows.
+      await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
+      // Analyze views only: its links to other pages are checked once, below.
+      advanced.push(
+        ...(await page
+          .locator('[role="menu"] [role="menuitem"]:not([data-route-link])')
+          .allInnerTexts()),
+      );
+      await page.keyboard.press("Escape");
+      for (const text of advanced) {
+        const label = text.trim().split("\n")[0];
+        await more.click();
+        await page
+          .locator('[role="menu"] [role="menuitem"]:not([data-route-link])', { hasText: label })
+          .first()
+          .click();
+        await settle();
+        await drain(`${industry}: tab "${label}"`);
+        lastLabel = label;
+      }
     }
     const headerTabs = await page.locator("[data-header-tab]").count();
     const expected = Number(
@@ -182,7 +190,8 @@ async function shellChecks(page) {
     await page.locator("nav[data-tab-count]").waitFor();
   };
 
-  // Ten tabs: five in the strip, four under Analyze, Ask Voyager in the header.
+  // Ten tabs: five main, four Analyze views (in the rail, or behind Analyze
+  // below 1024px), Ask Voyager in the header.
   await home();
   const tabCount = await page.locator("nav[data-tab-count]").getAttribute("data-tab-count");
   if (tabCount !== "10") throw new Error(`expected 10 tabs, data-tab-count is ${tabCount}`);
@@ -233,8 +242,12 @@ async function shellChecks(page) {
   await page.getByRole("heading", { name: "History", exact: true }).waitFor({ timeout });
 
   await home();
-  await page.locator("[data-more-tabs]").click();
-  await page.locator('[role="menu"] [data-route-link="value"]').click();
+  const railValue = page.locator('nav [data-route-link="value"]');
+  if (await railValue.isVisible()) await railValue.click();
+  else {
+    await page.locator("[data-more-tabs]").click();
+    await page.locator('[role="menu"] [data-route-link="value"]').click();
+  }
   await valueProofInView("Analyze › Value proof");
 
   await home();
@@ -377,10 +390,17 @@ async function shellChecks(page) {
       .locator('[role="menu"][aria-label="Needs attention"]')
       .waitFor({ state: "detached" });
   }
-  await page.locator("[data-more-tabs]").click();
-  await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
-  const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
-  await page.keyboard.press("Escape");
+  // The Analyze views: in the rail from 1024px wide, behind the menu below it.
+  const analyzeMenu = page.locator("[data-more-tabs]");
+  let advanced;
+  if (await analyzeMenu.isVisible()) {
+    await analyzeMenu.click();
+    await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
+    advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
+    await page.keyboard.press("Escape");
+  } else {
+    advanced = await page.locator('nav [role="tab"], nav [data-route-link]').allInnerTexts();
+  }
   const leaked = advanced.filter((text) => attentionItems.includes(text));
   if (leaked.length) {
     throw new Error(`Needs attention items counted as Analyze views: ${leaked.join(", ")}`);

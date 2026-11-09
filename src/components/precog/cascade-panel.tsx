@@ -56,9 +56,8 @@ export function CascadePanel() {
 
   return (
     <div className="space-y-4">
-      <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="accent">What else moves</Badge>
-        <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
           <GitBranch className="size-5 text-primary" />
           Change one thing — see what else moves
         </h2>

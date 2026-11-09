@@ -18,7 +18,6 @@ import {
 } from "@/lib/precog/stats/forensic-display";
 import { parsePastedAmounts } from "@/lib/precog/stats/pasted-amounts";
 import { parseTransactionsCsv } from "@/lib/precog/stats/transactions-csv";
-import { usePresentation } from "@/lib/precog/presentation";
 
 /** Where the screened records came from; the demo must never pass for the owner's data. */
 type Source = "demo" | "file" | "paste";
@@ -28,7 +27,6 @@ type Source = "demo" | "file" | "paste";
  * Monthly review; 2 (the default) leaves them under the page's h1.
  */
 export function ForensicPanel({ headingLevel = 2 }: { headingLevel?: 2 | 3 }) {
-  const { say } = usePresentation();
   const titleAs = headingLevel === 3 ? "h3" : "h2";
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [source, setSource] = useState<Source | null>(null);
@@ -70,7 +68,6 @@ export function ForensicPanel({ headingLevel = 2 }: { headingLevel?: 2 | 3 }) {
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="accent">{say("Number patterns", "Forensic screen")}</Badge>
             <Badge variant="primary">Runs locally · educational</Badge>
           </div>
           <CardTitle as={titleAs} className="mt-2 flex items-center gap-2">
