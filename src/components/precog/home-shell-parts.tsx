@@ -9,7 +9,6 @@ import {
 } from "react";
 import { ChevronDown, ExternalLink, MoreHorizontal } from "lucide-react";
 import type { TabId } from "@/lib/precog/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -560,8 +559,16 @@ export function MetricCard({
       }
     >
       <CardContent className="p-4">
-        <Badge variant={tone}>{label}</Badge>
-        <p className="mt-3 text-2xl font-semibold tabular tracking-tight">{value}</p>
+        <p className="text-xs text-muted">{label}</p>
+        <p
+          className={cn(
+            "mt-2 text-2xl font-semibold tabular tracking-tight",
+            tone === "danger" && "text-danger",
+            tone === "warn" && "text-warn",
+          )}
+        >
+          {value}
+        </p>
         <p className="mt-1 text-xs text-muted">{hint}</p>
       </CardContent>
     </Card>
