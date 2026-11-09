@@ -409,12 +409,12 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
-      <h2 className="text-lg font-semibold">Monthly review</h2>
+      <h2 className="text-lg font-semibold">This month&rsquo;s checks</h2>
       <p className="mt-1 text-sm text-muted">
         Do each check below. Choose who did it, then press Done, or Exception if you found a problem
         and say what you found.
       </p>
-      <HowThisWorks className="mt-3">
+      <HowThisWorks className="mt-3" summary="What Done records">
         <p>
           Precog saves each result with the person who did the check and the date. You can still
           record last month&rsquo;s checks until the 10th. Done records that the check was done. It
