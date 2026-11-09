@@ -402,7 +402,7 @@ function Home() {
                   <AccountDataControls />
                 </SignedIn>
               </div>
-              <div className="col-span-2 row-start-2 flex min-w-0 flex-nowrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto">
+              <div className="col-span-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-nowrap">
                 <PresentationToggle />
                 <SyncStatusBadge compactOnPhone />
                 <HeaderActions
