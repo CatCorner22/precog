@@ -189,7 +189,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-border bg-surface p-6">
+      <section className="rounded-xl border border-border bg-surface p-5">
         <Badge variant="primary">Built from your records</Badge>
         <PageIntro
           tab="pioneer"
