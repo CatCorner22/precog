@@ -15,6 +15,7 @@ import {
   type DutyFamily,
   type EntitlementId,
   entitlementById,
+  gatedSeverity,
 } from "./conflict-rules";
 
 /** A rule a pair of duties falls under, with the duties the person actually holds in the rule's two seats. */
@@ -192,7 +193,13 @@ function buildMatrix(): SodMatrixCell[] {
       }
       const rule = findRule(row, col)?.rule;
       if (rule) {
-        matrix.push({ row, col, status: "conflict", ruleIds: [rule.id], severity: rule.severity });
+        matrix.push({
+          row,
+          col,
+          status: "conflict",
+          ruleIds: [rule.id],
+          severity: gatedSeverity(rule),
+        });
       } else if (familyPair(row, col)) {
         matrix.push({
           row,

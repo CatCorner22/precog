@@ -3,7 +3,12 @@ import { caseDurationPhrase, caseForRule, lossPhrase } from "../evidence";
 import type { CaseStudy } from "../evidence/types";
 import type { IndustryId } from "../industry";
 import { ownSetupProfile } from "../business-lifecycle";
-import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
+import {
+  detectSodConflicts,
+  SEVERITY_RANK,
+  sodDetectionOptions,
+  type DetectedConflict,
+} from "../sod/detect";
 import { buildOwnTeam, type OwnTeamRow } from "./own-team";
 import type { SetupAnswers } from "./setup-answers";
 
@@ -59,9 +64,13 @@ export function previewSetup(
     sodDetectionOptions(tpl, profile.dualRelease),
   );
   // Employees' conflicts first: an owner holding both duties is a different,
-  // lesser finding, and not the one to open a demo with.
+  // lesser finding, and not the one to open a demo with. Then the tier, so a
+  // pair a hard gate lifted leads whatever its own score; then the score.
   const ranked = [...report.conflicts].sort(
-    (a, b) => Number(a.ownerHeld) - Number(b.ownerHeld) || b.score - a.score,
+    (a, b) =>
+      Number(a.ownerHeld) - Number(b.ownerHeld) ||
+      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+      b.score - a.score,
   );
   const conflict = ranked[0];
   if (!conflict) return { peopleWithDuties, conflictCount: 0, first: null };
