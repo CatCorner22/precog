@@ -699,9 +699,8 @@ export function ProcessMap({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-border bg-surface p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Interactive process map</Badge>
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-center gap-2 empty:hidden">
           {mapSource(profile) === "starter" ? (
             <Badge variant="default">
               Sample process map from the {starterMapFacts(profile).example}
