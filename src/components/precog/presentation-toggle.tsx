@@ -54,7 +54,7 @@ export function PresentationToggle({ className }: { className?: string }) {
           </button>
         ))}
       </div>
-      <p id={noteId} className="text-[11px] leading-tight text-subtle">
+      <p id={noteId} className="sr-only text-[11px] leading-tight text-subtle sm:not-sr-only">
         {TOGGLE_NOTE}
       </p>
     </div>
