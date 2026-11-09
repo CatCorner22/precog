@@ -116,8 +116,8 @@ describe("parseMapBackup", () => {
     expect(mitigatedSodRuleIds(policy, after, "2026-10-06").size).toBe(0);
     const health = (t: typeof general) =>
       detectSodConflicts(t, sample.staff, sodDetectionOptions(t, policy)).summary.segregationHealth;
-    expect(health(before)).toBe(12);
-    expect(health(after)).toBe(12);
+    expect(health(before)).toBe(10);
+    expect(health(after)).toBe(10);
   });
 
   it("refuses a file past the import size with its size and the limit", () => {

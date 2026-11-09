@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
+import { HARD_GATE_WORDS } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import type { StaffComposition } from "@/lib/precog/types";
@@ -44,6 +45,7 @@ export function ConflictSummary({
     <div className={cn("rounded-xl border px-3 py-3 text-sm", TONE_SURFACE[tone], className)}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={tone}>{conflictBadge(conflict)}</Badge>
+        {conflict.gate && <Badge variant="danger">Always top tier</Badge>}
         {conflict.dualReleaseMitigated && <Badge variant="ok">Narrowed by dual release</Badge>}
         {conflict.residualRiskAccepted && <Badge variant="warn">Risk accepted</Badge>}
       </div>
@@ -58,6 +60,12 @@ export function ConflictSummary({
       </p>
       {bridge && <p className="mt-1 text-xs text-muted">{bridge}</p>}
       <p className="mt-1 text-xs text-muted">{conflict.why}</p>
+      {conflict.gate && (
+        <p className="mt-1 text-xs text-muted">
+          <span className="font-medium text-fg">{HARD_GATE_WORDS[conflict.gate].label}.</span>{" "}
+          {HARD_GATE_WORDS[conflict.gate].why}
+        </p>
+      )}
       {children}
     </div>
   );

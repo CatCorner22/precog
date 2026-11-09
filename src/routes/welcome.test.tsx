@@ -111,7 +111,7 @@ describe("the landing page", () => {
     expect(html).not.toContain('<img src="/og.svg"');
     expect(html).toContain('aria-label="What Start here shows for the sample business"');
     expect(text).toContain(
-      "Ridgeview Family Dental · the fictional sample · 20 open duty conflicts, 4 critical",
+      "Ridgeview Family Dental · the fictional sample · 20 open duty conflicts, 5 critical",
     );
     expect(text).toContain("Do these first");
     expect(text).toContain(

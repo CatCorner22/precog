@@ -205,7 +205,8 @@ describe("detectSodConflicts", () => {
     expect(a.conflicts[0].severity).toBe("critical");
     const b = detectSodConflicts(oneClerk(["edit_payroll_master", "enter_payroll"]));
     expect(b.conflicts.map((c) => c.ruleId)).toEqual(["rule-payroll-master-run"]);
-    expect(b.conflicts[0].severity).toBe("high");
+    expect(b.conflicts[0].severity).toBe("critical");
+    expect(b.conflicts[0].gate).toBe("statutory_liability");
   });
 
   it("moves the health index when a heavily loaded team removes one conflict", () => {
@@ -673,10 +674,10 @@ describe("cash, refund, void and journal-entry rules", () => {
 
 describe("signing checks is releasing payments", () => {
   it.each([
-    [["approve_vendor", "sign_checks"], "rule-vendor-approve-pay", "high"],
+    [["approve_vendor", "sign_checks"], "rule-vendor-approve-pay", "critical"],
     [["create_vendor", "sign_checks"], "rule-vendor-create-pay", "critical"],
     [["enter_invoices", "sign_checks"], "rule-invoice-pay", "critical"],
-    [["enter_payroll", "sign_checks"], "rule-payroll-release", "high"],
+    [["enter_payroll", "sign_checks"], "rule-payroll-release", "critical"],
   ])("reads %j through %s", (duties, ruleId, severity) => {
     const report = detectSodConflicts(oneClerk(duties));
     const found = report.conflicts.find((c) => c.ruleId === ruleId);

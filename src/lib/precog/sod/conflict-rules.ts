@@ -948,3 +948,49 @@ export const FAMILY_CONFLICT_MATRIX: Record<DutyFamily, Partial<Record<DutyFamil
   reconciliation: { custody: true, recording: true },
   master_data: { custody: true, authorization: true },
 };
+
+/**
+ * Hard gates: two exposures no additive score dilutes. A conflict whose pair
+ * touches one of these duties is always top tier, whatever weight the pair
+ * carries on its own, and the finding names the gate so the owner sees why.
+ *
+ * - money_out: a wire, ACH, check or refund that already left cannot be
+ *   recalled, so there is no later step that catches it.
+ * - statutory_liability: unpaid payroll withholdings fall on the owner
+ *   personally (the trust-fund recovery penalty), whoever ran payroll.
+ *
+ * Educational control design, not legal advice.
+ */
+export type HardGate = "money_out" | "statutory_liability";
+
+export const HARD_GATE_DUTIES: Readonly<Record<HardGate, readonly EntitlementId[]>> = {
+  money_out: ["release_payment", "initiate_ach", "sign_checks", "issue_refunds"],
+  statutory_liability: ["approve_payroll", "enter_payroll", "edit_payroll_master"],
+};
+
+export const HARD_GATE_WORDS: Readonly<Record<HardGate, { label: string; why: string }>> = {
+  money_out: {
+    label: "Money leaves and cannot be recalled",
+    why: "A wire, ACH, check or refund that already left is gone. No later step catches it, so this pair stays top tier whatever its own weight.",
+  },
+  statutory_liability: {
+    label: "Payroll taxes fall on the owner personally",
+    why: "Withholdings that never reach the IRS or the state come back to the owner as a personal penalty, whoever ran payroll. This pair stays top tier whatever its own weight.",
+  },
+};
+
+/** The gate a duty pair trips, money out first; undefined when neither duty is gated. */
+export function hardGate(a: EntitlementId, b: EntitlementId): HardGate | undefined {
+  for (const gate of ["money_out", "statutory_liability"] as const) {
+    const duties = HARD_GATE_DUTIES[gate];
+    if (duties.includes(a) || duties.includes(b)) return gate;
+  }
+  return undefined;
+}
+
+/** A rule's severity after the hard gates: critical when its pair trips one. */
+export function gatedSeverity(
+  rule: Pick<ConflictRule, "a" | "b" | "severity">,
+): ConflictRule["severity"] {
+  return hardGate(rule.a, rule.b) ? "critical" : rule.severity;
+}

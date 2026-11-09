@@ -9,7 +9,7 @@
 export const LANDING_SAMPLE = {
   businessName: "Ridgeview Family Dental",
   openConflicts: 20,
-  critical: 4,
+  critical: 5,
   steps: [
     "Move one duty, enter write-offs, away from Maya Chen: it closes 4 of the 20 open duty conflicts",
     "Someone other than the person who banks the money reconciles the account",
