@@ -12,7 +12,6 @@ import {
   FileText,
   Upload,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DEFAULT_VALUE_CASE,
@@ -173,9 +172,8 @@ export function ValueProofCenter({ headingLevel = 1 }: { headingLevel?: 1 | 2 | 
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="accent">Value proof</Badge>
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <Heading className="text-xl font-semibold">
             What Precog has returned so far, and what it might prevent
           </Heading>

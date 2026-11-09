@@ -24,9 +24,8 @@ export function DualReleasePanel({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-border bg-surface p-6">
+      <section className="rounded-xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">Dual release</Badge>
           <Badge variant={policy.enabled ? "ok" : "danger"}>{policy.enabled ? "On" : "Off"}</Badge>
           <Badge variant="default">
             {exSummary.total} active exception{exSummary.total === 1 ? "" : "s"}

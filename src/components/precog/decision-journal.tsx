@@ -241,9 +241,8 @@ export function DecisionJournal({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="accent">{tabName("journal")}</Badge>
-        <Heading className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <Heading className="flex items-center gap-2 text-xl font-semibold tracking-tight">
           <BookOpen className="size-5 text-primary" />
           Write it down or it did not happen
         </Heading>
