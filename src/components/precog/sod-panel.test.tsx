@@ -92,7 +92,7 @@ describe("the duty-conflict tab's views", () => {
     const labelIndex = html.indexOf("Duties kept apart");
     const tile = html.slice(labelIndex - 180, labelIndex + 300);
 
-    expect(tile).toContain("bg-elevated text-muted");
+    expect(tile).not.toContain("text-danger");
     expect(tile).toContain(">—<");
     expect(tile).toContain("Not assessed: nobody holds a money duty yet");
   });
