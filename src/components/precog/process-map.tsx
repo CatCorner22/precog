@@ -700,7 +700,7 @@ export function ProcessMap({
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-border bg-surface p-5">
-        <div className="flex flex-wrap items-center gap-2 empty:hidden">
+        <div className="mb-3 flex flex-wrap items-center gap-2 empty:hidden">
           {mapSource(profile) === "starter" ? (
             <Badge variant="default">
               Sample process map from the {starterMapFacts(profile).example}
@@ -715,7 +715,6 @@ export function ProcessMap({
         </div>
         <PageIntro
           tab="map"
-          className="mt-3"
           purpose="Each process your business runs, who owns it, and where the risk sits."
           method={
             <p>
