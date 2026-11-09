@@ -409,7 +409,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
-      <h2 className="text-lg font-semibold">This month&rsquo;s checks</h2>
+      <h2 className="text-lg font-semibold">Checks to record</h2>
       <p className="mt-1 text-sm text-muted">
         Do each check below. Choose who did it, then press Done, or Exception if you found a problem
         and say what you found.

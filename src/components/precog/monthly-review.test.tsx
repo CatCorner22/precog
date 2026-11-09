@@ -218,9 +218,9 @@ describe("monthly review communicates evidence limits", () => {
     expect(html).toContain("control evidence log");
     expect(html.match(/data-review-independence="self_review"/g)).toHaveLength(4);
   });
-  it("is titled This month’s checks, says which record a reviewer relies on, and links nowhere", () => {
+  it("is titled Checks to record, says which record a reviewer relies on, and links nowhere", () => {
     const html = view();
-    expect(html).toContain(">This month’s checks</h2>");
+    expect(html).toContain(">Checks to record</h2>");
     expect(html).not.toContain("This month’s file");
     expect(html).toContain(
       "Reviewers rely on this log. Done marks on processes, Decisions log entries and procedure proofs stay on the business and are not part of it.",
