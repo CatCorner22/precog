@@ -84,11 +84,12 @@ describe("tab strip", () => {
   });
 });
 
-describe("the phone's All sections menu", () => {
+describe("All sections menu", () => {
   const tab = (id: "team" | "map", label: string) => ({
     id,
     label,
     tactical: label,
+    description: "Open this section.",
     icon: () => null,
   });
   const menu = (sections: ReturnType<typeof tab>[]) =>
@@ -102,18 +103,19 @@ describe("the phone's All sections menu", () => {
       />,
     );
 
-  it("names itself, and is not the Analyze menu the tab walk opens", () => {
+  it("names itself and connects its trigger to the directory", () => {
     const html = menu([tab("team", "Team")]);
     expect(html).toContain("All sections");
     expect(html).toContain("data-sections-menu");
     expect(html).not.toContain("data-more-tabs");
+    expect(html).toMatch(/aria-controls="[^"]+"/);
   });
 
-  it("stays the Analyze menu with no sections", () => {
+  it("keeps the same name when there are no primary sections", () => {
     const html = menu([]);
-    expect(html).toContain("Analyze");
-    expect(html).toContain("data-more-tabs");
-    expect(html).not.toContain("data-sections-menu");
+    expect(html).toContain("All sections");
+    expect(html).toContain("data-sections-menu");
+    expect(html).not.toContain("data-more-tabs");
   });
 });
 

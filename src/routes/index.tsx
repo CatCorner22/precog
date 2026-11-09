@@ -268,9 +268,9 @@ function Home() {
     [sodReport, profile.dualRelease],
   );
 
-  /** The Analyze menu's views and links; the phone's "All sections" menu adds the main tabs. */
-  const analyzeMenu = {
-    tabs: ANALYZE_TABS,
+  const sectionsMenu = {
+    sections: PRIMARY_TABS,
+    tabs: TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id)),
     activeId: tab,
     label: (t: ShellTab) => say(t.label, t.tactical),
     onPick: (id: TabId) => openTab(id),
@@ -284,7 +284,7 @@ function Home() {
 
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
-    // The visible strip: the primary tabs plus the open Analyze or header tab,
+    // The visible strip: the primary tabs plus the open planning or header tab,
     // if any; a phone shows the open tab only, so the keys stay on it there.
     const visible = (activeExtra ? [...PRIMARY_TABS, activeExtra] : PRIMARY_TABS).filter(
       (t) => t.id === tab || document.getElementById(`tab-${t.id}`)?.offsetParent !== null,
@@ -384,19 +384,7 @@ function Home() {
             activeId={tab}
             onKeyDown={onTabKeyDown}
             tabCount={TABS.length}
-            trailing={
-              // On a phone the strip shows only the open tab, and "All
-              // sections" names every main section and Analyze view, so none
-              // sits off the edge. Wider screens keep every tab and Analyze.
-              <>
-                <div className="hidden sm:block">
-                  <MoreTabsMenu {...analyzeMenu} />
-                </div>
-                <div className="sm:hidden">
-                  <MoreTabsMenu {...analyzeMenu} sections={PRIMARY_TABS} />
-                </div>
-              </>
-            }
+            trailing={<MoreTabsMenu {...sectionsMenu} />}
           >
             {[...PRIMARY_TABS, ...(activeExtra ? [activeExtra] : [])].map((t) => {
               const Icon = t.icon;
@@ -594,24 +582,20 @@ const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[
 /**
  * Five tabs carry the owner's jobs: where you stand, who works here, who
  * controls what, who knows what, and what to check each month. Procedures
- * open from Who knows what and also sit under Analyze, with how work flows,
- * what could happen, and how Precog scores. Ask Pioneer is a header button,
- * since a question can come up on any tab. Every tab keeps its id and deep
+ * open from Who knows what and also sit in All sections, with how work flows,
+ * what could happen, and how Precog scores. Ask Voyager keeps a header shortcut
+ * and also appears in the directory. Every tab keeps its id and deep
  * link, and older ids open the view they became (TAB_ALIASES) or the page
  * they moved to (ROUTE_ALIASES).
  */
 const PRIMARY_TAB_IDS: readonly TabId[] = ["start", "team", "sod", "knowledge", "monthly"];
-const HEADER_TAB_IDS: readonly TabId[] = ["pioneer"];
 /**
- * Value proof and History live on the firm workspace. Analyze links there,
+ * Value proof and History live on the firm workspace. All sections links there,
  * so an owner who is signed out (and has no Firm workspace button) still
  * reaches Value proof on this device.
  */
 const ROUTE_LINK_IDS: readonly RouteAliasId[] = ["value", "snapshots"];
 const PRIMARY_TABS = PRIMARY_TAB_IDS.map((id) => TABS.find((t) => t.id === id)!);
-const ANALYZE_TABS = TABS.filter(
-  (t) => !PRIMARY_TAB_IDS.includes(t.id) && !HEADER_TAB_IDS.includes(t.id),
-);
 
 /** One sentence of purpose per page, with the method folded under "How this works". */
 const TAB_INTROS = {
