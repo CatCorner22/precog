@@ -28,3 +28,26 @@ describe("hard gates", () => {
     ]);
   });
 });
+
+import { INDUSTRIES } from "@/lib/precog/industry";
+import { defaultProfile } from "@/lib/precog/practice-profile";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { buildStartHereModel } from "@/lib/precog/start-here/model";
+import { SEVERITY_RANK } from "./detect";
+
+describe("hard gates lead the ranked lists", () => {
+  it("never let a high pair sit above a critical one on Start here", () => {
+    for (const { id } of INDUSTRIES) {
+      const profile = defaultProfile(id);
+      const template = resolveTemplate(profile);
+      const model = buildStartHereModel({ profile, template, today: new Date("2026-03-15") });
+      const unmitigated = model.exposure.openConflicts.filter((c) => !c.dualReleaseMitigated);
+      const ranks = unmitigated.map((c) => SEVERITY_RANK[c.severity]);
+      expect(ranks, id).toEqual([...ranks].sort((a, b) => a - b));
+      expect(
+        unmitigated.some((c) => c.gate && c.severity === "critical"),
+        id,
+      ).toBe(true);
+    }
+  });
+});
