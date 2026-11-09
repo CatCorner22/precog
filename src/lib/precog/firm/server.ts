@@ -529,6 +529,7 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
       result: ReviewResult;
       notes?: string;
       today?: string;
+      retry?: boolean;
     }) => {
       const raw = requireObject(input);
       if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business id");
@@ -545,6 +546,7 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
         result: raw.result,
         notes: typeof raw.notes === "string" ? raw.notes.trim().slice(0, 500) : "",
         today: resolveClientDate(raw.today),
+        retry: raw.retry === true,
       };
     },
   )
@@ -552,7 +554,7 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     // audit: exempt (the monthly review log is its own record)
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    await insertReviewEvent(sql, owner, data, context.userId);
+    await insertReviewEvent(sql, owner, data, context.userId, data.retry);
     // The audit insert commits before optional evidence and telemetry. Each
     // later write has its own transactional gate; a side-effect failure never
     // rolls back or re-authorizes the review.

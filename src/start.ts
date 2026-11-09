@@ -1,4 +1,18 @@
 import { createCsrfMiddleware, createMiddleware, createStart } from "@tanstack/react-start";
+import { createSerializationAdapter } from "@tanstack/react-router";
+import { RequestError } from "@/lib/request-errors";
+
+/**
+ * Carries a refusal's status to the browser. Start's own error adapter keeps
+ * only the message, so without this a 401 or 403 arrives as a plain Error and
+ * the screens retry it like a network failure instead of asking for a sign-in.
+ */
+export const requestErrorAdapter = createSerializationAdapter({
+  key: "precog/RequestError",
+  test: (value): value is RequestError => value instanceof RequestError,
+  toSerializable: (error) => ({ status: error.status, message: error.message }),
+  fromSerializable: ({ status, message }) => new RequestError(status, message),
+});
 
 /**
  * The framework's default protection, restated: declaring a start instance
@@ -48,6 +62,7 @@ const clientErrorStatusMiddleware = createMiddleware({ type: "function" }).serve
 );
 
 export const startInstance = createStart(() => ({
+  serializationAdapters: [requestErrorAdapter],
   requestMiddleware: [csrfMiddleware, serverFnRequestGuard],
   functionMiddleware: [clientErrorStatusMiddleware],
 }));

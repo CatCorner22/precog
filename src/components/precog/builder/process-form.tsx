@@ -61,20 +61,22 @@ export function ProcessForm({
   onChange,
   onDelete,
   onSaveAsBlock,
+  resetKey = 0,
 }: {
   process: ProcessNode;
   all: ProcessNode[];
   onChange: (patch: Partial<ProcessNode>) => void;
   onDelete: () => void;
   onSaveAsBlock: () => void;
+  resetKey?: number;
 }) {
   const tpl = useTemplate();
   const { isPlain } = usePresentation();
   // The form's own copy of the text fields. An undo, import or restore that
   // changes the process text replaces the copy, so a stale copy is never
   // committed back over the change.
-  const [text, setText] = useState(() => initialFormText(process));
-  const synced = syncFormText(text, process);
+  const [text, setText] = useState(() => initialFormText(process, resetKey));
+  const synced = syncFormText(text, process, resetKey);
   if (synced !== text) setText(synced);
   const { name, desc, inputs, outputs, systems, location } = synced.fields;
   const setField = (field: keyof ProcessTextFields, value: string) =>

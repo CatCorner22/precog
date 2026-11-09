@@ -81,6 +81,27 @@ function failingOn(needle: string): (inner: Sql) => Sql {
 }
 
 describe("firm client isolation", () => {
+  it("retries an identical event without duplicating history, but keeps changed or new results", async () => {
+    const input = {
+      businessId: "biz_1",
+      period: "2026-09",
+      itemKey: "bank_statement" as const,
+      ownerName: "Ada",
+      dueOn: "2026-10-10",
+      result: "done" as const,
+      notes: "Statement opened",
+    };
+    await insertReviewEvent(db.sql, "ua", input, "ua");
+    await insertReviewEvent(db.sql, "ua", input, "ua", true);
+    let rows = await db.sql`select * from review_events where user_id = ${"ua"}`;
+    expect(rows).toHaveLength(1);
+    await insertReviewEvent(db.sql, "ua", { ...input, notes: "Additional evidence" }, "ua", true);
+    await insertReviewEvent(db.sql, "ua", input, "ua");
+    rows = await db.sql`select * from review_events where user_id = ${"ua"}`;
+    expect(rows).toHaveLength(3);
+    await insertReviewEvent(db.sql, "ub", input, "ub", true);
+    expect(await db.sql`select * from review_events where user_id = ${"ub"}`).toHaveLength(1);
+  });
   it("lists only the signed-in account's clients and review log", async () => {
     await saveFirm(db.sql, "ua", "North Advisors", "assessment");
     await insertReviewEvent(

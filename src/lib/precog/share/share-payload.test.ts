@@ -141,6 +141,16 @@ describe("redactSharePayload", () => {
     expect(redacted.note).toBe("Ask Team member.");
   });
 
+  it("keeps a lower-case role word that is also someone's name word", () => {
+    const redacted = redactSharePayload(
+      { ...payload(), note: "QA Owner reviews it; the owner signs and QA checks." },
+      [{ name: "QA Owner", role: "" }],
+    );
+    expect(redacted.note).toBe(
+      "Team member B reviews it; the owner signs and Team member B checks.",
+    );
+  });
+
   it("keeps bookkeeping abbreviations that match someone's initials", () => {
     const redacted = redactSharePayload(
       { ...payload(), note: "Ana Price posts AP invoices; A.P. signs." },

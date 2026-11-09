@@ -206,6 +206,9 @@ export async function downloadAccountExport(
 export const EXPORT_RETRY_LABEL = "Try again";
 /** The message when an export fails for any other reason. */
 export const EXPORT_FAILED = "Export failed. Try again soon.";
+/** The message when the server no longer recognises the sign-in, for example after the account was deleted elsewhere. */
+export const EXPORT_SIGNED_OUT =
+  "Your sign-in ended, so Precog stopped the export. Sign in again to download your data.";
 
 /**
  * Says why the export saved nothing, with a button that starts it again: the
@@ -213,7 +216,12 @@ export const EXPORT_FAILED = "Export failed. Try again soon.";
  * server refused one), or the export failed.
  */
 export function showExportFailure(error: unknown, retry: () => void): void {
-  const changed = error instanceof ExportChangedError || clientErrorStatus(error) === 409;
+  const status = clientErrorStatus(error);
+  if (status === 401) {
+    showSignInAgain(EXPORT_SIGNED_OUT, signOut);
+    return;
+  }
+  const changed = error instanceof ExportChangedError || status === 409;
   toast.error(changed ? EXPORT_CHANGED : EXPORT_FAILED, {
     duration: 15_000,
     action: { label: EXPORT_RETRY_LABEL, onClick: retry },

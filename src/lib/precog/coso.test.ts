@@ -22,6 +22,23 @@ const clean: StaffComposition = {
 };
 
 describe("assessCoso", () => {
+  it("distinguishes control records needing separate duties from duty-map conflict pairs", () => {
+    const tpl = getIndustryTemplate("dental");
+    const assessment = assessCoso(tpl, tpl.staffComposition);
+    const gaps = tpl.controls.filter((control) => !control.starter && !control.segregated).length;
+    const fraud = assessment.components
+      .flatMap((component) => component.findings)
+      .find((finding) => finding.id === "ra-fraud")!;
+    expect(fraud.detail).toContain(`${gaps} control records needing separate duties`);
+    expect(fraud.detail).not.toContain("open duty conflict");
+    const principles = assessment.components.flatMap((component) => component.principles);
+    expect(principles.find((principle) => principle.number === 3)!.note).toContain(
+      "control records needing separate duties",
+    );
+    expect(principles.find((principle) => principle.number === 10)!.note).toContain(
+      "on the duty map",
+    );
+  });
   it("scores the profile's staff, not the template's", () => {
     const fromTemplate = assessCoso(own, own.staffComposition);
     const fromProfile = assessCoso(own, clean);
@@ -138,7 +155,7 @@ describe("priority findings", () => {
       "A sentence is written down, not a tested control: Owner compares the deposit slip to the day sheet weekly",
     );
     expect(a.components.flatMap((c) => c.principles).find((p) => p.number === 5)!.note).toBe(
-      "The business has not recorded a residual-risk decision on any duty conflict.",
+      "The business has not recorded a residual-risk decision on any control needing separate duties.",
     );
     expect(a.priorityFindings.map((f) => f.id)).toEqual([
       "ce-spof",
@@ -199,7 +216,7 @@ describe("COSO component statuses", () => {
     expect(closed.gaps).toBeLessThanOrEqual(accepted.gaps);
     const p5 = principle(closed, 5);
     expect(p5.status).toBe("in_place");
-    expect(p5.note).toBe("No open duty conflict needs a residual-risk decision.");
+    expect(p5.note).toBe("No control needing separate duties needs a residual-risk decision.");
     // Accepting the risk records a decision; it does not close the gap.
     expect(principle(accepted, 12).status).toBe("gap");
     expect(principle(accepted, 17).status).toBe("in_place");

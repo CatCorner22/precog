@@ -43,11 +43,8 @@ import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
 import { cn } from "@/lib/utils";
 import { HowThisWorks } from "./page-intro";
 import { checkItemId } from "./monthly-check-id";
-
-/** A note draft's and a save's key: the month and the check, so switching months keeps each apart. */
-function draftKey(period: string, key: string): string {
-  return `${period}:${key}`;
-}
+import { MonthlyReviewOverview } from "./monthly-review-overview";
+import { BEFORE_FORM_LEAVE } from "@/lib/precog/form-navigation";
 
 /**
  * The words on a result button. The screen alone says what Exception means;
@@ -82,9 +79,14 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
   const shownPeriod = chosen && periods.includes(chosen) ? chosen : periods[0];
   const tasks = monthlyReviewTasks(today, template.people, template.roleTemplates, shownPeriod);
   const records = profile.monthlyReviews ?? [];
+  const draftScope = `${user?.id ?? "guest"}:${profile.businessId ?? "unsaved"}:`;
+  function draftKey(period: string, key: string): string {
+    return `${draftScope}${period}:${key}`;
+  }
   // Note drafts and the save under way, each by `draftKey(period, check)`.
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [pendingSaves, setPendingSaves] = useState<Record<string, string>>({});
   // Who did each check, by `draftKey`. Every check starts empty and waits for
   // its own choice: a pick carried over from another check could credit a
   // check to someone the owner never chose.
@@ -119,16 +121,28 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
   const evidenceFor = `${evidenceAccountId} ${businessId} ${period}`;
   const evidenceShown = evidence?.read === evidenceFor ? evidence.statuses : null;
   // A typed note no result has saved yet, which closing the page would lose.
-  const unsaved = Object.values(notes).some((note) => note.trim() !== "");
+  const unsaved = Object.entries(notes).some(
+    ([key, note]) => key.startsWith(draftScope) && note.trim() !== "",
+  );
 
   useEffect(() => {
     if (!unsaved || typeof window === "undefined") return;
+    const leave = (event: Event) => {
+      if (
+        !window.confirm("Your Monthly review note is not fully saved. Leave and discard the draft?")
+      )
+        event.preventDefault();
+    };
     const warn = (event: Event) => {
       event.preventDefault();
       (event as BeforeUnloadEvent).returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
+    window.addEventListener(BEFORE_FORM_LEAVE, leave);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      window.removeEventListener(BEFORE_FORM_LEAVE, leave);
+    };
   }, [unsaved]);
 
   /**
@@ -199,11 +213,21 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
     noteOverride?: string,
   ) {
     const draft = draftKey(period, key);
+    if (busy[draft]) return;
+    const typedNote = noteOverride ?? notes[draft] ?? "";
     const note = noteOverride ?? notes[draft] ?? "";
+    const clearNote = () => {
+      setPendingSaves((current) => ({ ...current, [draft]: "" }));
+      setNotes((current) =>
+        (current[draft] ?? "") === typedNote ? { ...current, [draft]: "" } : current,
+      );
+    };
     // The person picked for this check, never the suggested one.
     const pick = pickFor(draft);
     const ownerName = (pick.choice === SOMEONE_ELSE ? pick.other : pick.choice).trim();
     const input = { key, period, result, ownerName, notes: note };
+    const signature = JSON.stringify(input);
+    const retry = pendingSaves[draft] === signature;
     const problem = reviewSaveProblem(input);
     if (problem) {
       setProblems((current) => ({ ...current, [draft]: problem }));
@@ -211,12 +235,18 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
     }
     setProblems((current) => ({ ...current, [draft]: "" }));
     setPicks((current) => ({ ...current, [draft]: pick }));
-    const trim = appendReview(records, input);
-    setMonthlyReviews((current) => recordReview(current, input));
-    if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
-    setNotes((current) => ({ ...current, [draft]: "" }));
-    if (!user || !profile.businessId) return;
-    setBusy(draft);
+    if (noteOverride !== undefined) setNotes((current) => ({ ...current, [draft]: noteOverride }));
+    if (!retry) {
+      const trim = appendReview(records, input);
+      setMonthlyReviews((current) => recordReview(current, input));
+      if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
+    }
+    if (!user || !profile.businessId) {
+      clearNote();
+      return;
+    }
+    setBusy((current) => ({ ...current, [draft]: true }));
+    setPendingSaves((current) => ({ ...current, [draft]: signature }));
     try {
       await recordMonthlyReview({
         data: {
@@ -227,9 +257,19 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           dueOn,
           result,
           notes: note,
+          retry,
           today: localDateKey(new Date()),
         },
       }).then((res) => {
+        if (
+          res.evidenceBridged ||
+          res.evidenceSkippedReason === null ||
+          ["superseded", "bridge_disabled", "migration_pending", "already_recorded"].includes(
+            res.evidenceSkippedReason ?? "",
+          )
+        ) {
+          clearNote();
+        }
         setEvidenceRead((n) => n + 1);
         const skipped = `Skipped for ${formatMonth(period)} on this business.`;
         if (res.evidenceSkippedReason === "superseded") {
@@ -286,6 +326,11 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           return;
         }
         // Anything else is a failure of ours or the evidence log's reason for refusing the entry.
+        setProblems((current) => ({
+          ...current,
+          [draft]:
+            "Saved on this business, but not in the evidence log. Your note stays here. Press the result again to retry.",
+        }));
         toast.warning("Saved on this business, but not in the evidence log.", {
           description:
             res.evidenceSkippedReason === "bridge_failed"
@@ -294,6 +339,11 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
         });
       });
     } catch (error) {
+      setProblems((current) => ({
+        ...current,
+        [draft]:
+          "Saved on this business, but the account log did not update. Your note stays here. Check your connection and press the result again.",
+      }));
       toast.error(
         "Precog saved this on the business but could not update the monthly review log in your account. Check your connection and press the result again.",
         // A refusal (not the owner, a bad value) carries the server's reason.
@@ -302,7 +352,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           : undefined,
       );
     } finally {
-      setBusy(null);
+      setBusy((current) => ({ ...current, [draft]: false }));
     }
   }
 
@@ -408,7 +458,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
   const found = shownPeriod ? otherProblems(records, shownPeriod) : [];
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-4">
+    <section className="rounded-xl border border-border bg-surface p-4 sm:p-6">
       <h2 className="text-lg font-semibold">Monthly review</h2>
       <p className="mt-1 text-sm text-muted">
         Do each check below. Choose who did it, then press Done, or Exception if you found a problem
@@ -448,6 +498,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           ))}
         </div>
       )}
+      <MonthlyReviewOverview tasks={tasks} records={records} />
       {facts && (
         <ul className="mt-4 space-y-2">
           {facts.map((fact) => (
@@ -490,7 +541,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
               id={checkItemId(task.period, task.key)}
               tabIndex={-1}
               // Needs attention focuses the check it opens; the outline shows which one.
-              className="scroll-mt-4 rounded-lg border border-border p-3 focus:outline-2 focus:outline-offset-2 focus:outline-primary"
+              className="scroll-mt-24 rounded-xl border border-border bg-bg/30 p-4 focus:outline-2 focus:outline-offset-2 focus:outline-primary sm:p-5"
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-medium">{task.title}</h3>
@@ -572,7 +623,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
                       key={result}
                       type="button"
                       aria-pressed={pressed}
-                      disabled={busy === draft}
+                      disabled={busy[draft] ?? false}
                       className={
                         pressed
                           ? "rounded-md border border-primary bg-primary px-2 py-1 text-xs font-medium text-primary-fg disabled:opacity-50 pointer-coarse:min-h-11"
@@ -587,7 +638,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
                 {latest?.result === "exception" && (
                   <button
                     type="button"
-                    disabled={busy === draft}
+                    disabled={busy[draft] ?? false}
                     className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50 pointer-coarse:min-h-11"
                     onClick={() =>
                       void save(

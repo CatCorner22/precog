@@ -45,6 +45,7 @@ const {
   digestSwitchLabel,
   downloadAccountExport,
   EXPORT_FAILED,
+  EXPORT_SIGNED_OUT,
   EXPORT_PART_RETRIES,
   EXPORT_RETRY_LABEL,
   showExportFailure,
@@ -235,6 +236,7 @@ describe("Export data", () => {
     showExportFailure(new ExportChangedError(), retry);
     showExportFailure(Object.assign(new Error(EXPORT_CHANGED), { status: 409 }), retry);
     showExportFailure(new Error("Failed to fetch"), retry);
+    showExportFailure(Object.assign(new Error("Unauthorized"), { status: 401 }), retry);
     const calls = toasts.error.mock.calls as unknown as Array<
       [string, { action: { label: string; onClick: () => void } }]
     >;
@@ -242,12 +244,15 @@ describe("Export data", () => {
       EXPORT_CHANGED,
       EXPORT_CHANGED,
       EXPORT_FAILED,
+      EXPORT_SIGNED_OUT,
     ]);
-    for (const [, options] of calls) {
+    for (const [, options] of calls.slice(0, 3)) {
       expect(options.action.label).toBe("Try again");
       options.action.onClick();
     }
     expect(retry).toHaveBeenCalledTimes(3);
+    // A 401 means the sign-in ended (the account may be deleted): no retry, a sign-in instead.
+    expect(calls[3]?.[1].action.label).toBe("Sign in again");
   });
 });
 

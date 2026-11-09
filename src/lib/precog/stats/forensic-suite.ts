@@ -253,7 +253,7 @@ function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest)
     id,
     title: `Benford ${label} fit`,
     severity: benfordSeverity(test),
-    summary: `${test.n} eligible amounts show ${test.conformity} conformity (MAD ${test.mad.toFixed(4)}).`,
+    summary: `${test.n} eligible amounts show ${test.conformity === "nonconformity" ? "poor" : test.conformity} conformity (MAD ${test.mad.toFixed(4)}).`,
     detail: [
       `Chi-square ${test.chiSquare.toFixed(2)} with ${test.df} degrees of freedom (${test.pValueBand}).`,
       "This screen compares the distribution of leading digits with a mathematical reference pattern.",

@@ -1018,7 +1018,9 @@ export function IndustryOnboarding({
                 }}
               />
               <p className="text-center text-xs text-subtle">
-                Nothing leaves this browser until you sign in and choose to sync.
+                {workspace.accountId
+                  ? "Precog saves this business to your account when you finish setup."
+                  : "Nothing leaves this browser until you sign in and choose to sync."}
               </p>
               {cancelLink}
             </CardContent>
@@ -1659,7 +1661,9 @@ export function IndustryOnboarding({
                 </Button>
               </div>
               <p className="text-center text-xs text-subtle">
-                Nothing leaves this browser until you sign in and choose to sync.
+                {workspace.accountId
+                  ? "Precog saves this business to your account when you finish setup."
+                  : "Nothing leaves this browser until you sign in and choose to sync."}
               </p>
               {cancelLink}
             </CardContent>

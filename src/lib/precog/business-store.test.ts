@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { getIndustryTemplate } from "./templates";
 import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import {
@@ -259,6 +260,42 @@ describe("loadActiveBusiness", () => {
 });
 
 describe("history", () => {
+  /** Moves biz_1 and its kept versions `minutes` into the past, past the coalescing window. */
+  async function ageAll(minutes: number) {
+    await sql`update business_history set saved_at = saved_at - make_interval(mins => ${minutes})
+      where user_id = 'user-a' and business_id = 'biz_1'`;
+    await sql`update businesses set updated_at = updated_at - make_interval(mins => ${minutes})
+      where user_id = 'user-a' and id = 'biz_1'`;
+  }
+
+  it("counts the industry template's people and processes when a version has no custom lists", async () => {
+    const v1Input = input("user-a", "biz_1", null, "v1");
+    const tpl = getIndustryTemplate(v1Input.industry as "dental");
+    // The row's industry decides the template, as a restore does; the profile need not repeat it.
+    await saveBusinessRevision(sql, {
+      ...v1Input,
+      profileJson: JSON.stringify({ practiceName: "v1" }),
+    });
+    await ageAll(HISTORY_VERSION_WINDOW_MINUTES + 1);
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", 1, "v2"),
+      profileJson: JSON.stringify({
+        practiceName: "v2",
+        industry: "dental",
+        customPeople: [{ id: "p1" }],
+        customProcesses: [],
+      }),
+    });
+    await ageAll(HISTORY_VERSION_WINDOW_MINUTES + 1);
+    await saveBusinessRevision(sql, input("user-a", "biz_1", 2, "v3"));
+    const [v2, v1] = await listBusinessHistory(sql, "user-a", "biz_1");
+    expect([v1?.peopleCount, v1?.processCount]).toEqual([tpl.people.length, tpl.processes.length]);
+    expect([v2?.peopleCount, v2?.processCount]).toEqual([1, 0]);
+    expect((await listBusinessSummaries(sql, "user-a"))[0]?.processCount).toBe(
+      tpl.processes.length,
+    );
+  });
+
   it("keeps the replaced version when another account saves, with who saved it", async () => {
     await sql`insert into firms (user_id, name) values ('user-a', 'Firm')`;
     await sql`insert into firm_members (firm_user_id, member_user_id) values ('user-a', 'user-b')`;
@@ -939,7 +976,11 @@ describe("listBusinessSummaries", () => {
       healthScore: 72,
       industry: "dental",
     });
-    expect(byId.get("biz_2")).toMatchObject({ processCount: 0, healthScore: null });
+    // No custom list means the dental template's processes are in use.
+    expect(byId.get("biz_2")).toMatchObject({
+      processCount: getIndustryTemplate("dental").processes.length,
+      healthScore: null,
+    });
     expect(byId.get("biz_3")).toMatchObject({ healthScore: null });
   });
 

@@ -187,7 +187,7 @@ const HONORIFICS = [
 const HONORIFIC_WORD = new RegExp(`^(?:${HONORIFICS.join("|")})\\.?$`, "i");
 
 /**
- * Name words that are also everyday English words. In lower case they read as
+ * Name and role words that are also everyday English words. In lower case they read as
  * the word ("staff may", "the bank will"), so only their capitalised and
  * upper-case spellings count as a name.
  */
@@ -199,6 +199,9 @@ const COMMON_WORDS = new Set(
     "cash check cook cross day field fisher fox gold gray green grey hill hunt knight lamb little",
     "long love mason mills moss north page park porter read reed rice sharp short silver small",
     "south stone waters wells west white wise wood young",
+    "owner manager clerk bookkeeper assistant admin partner director officer lead head chief",
+    "nurse hygienist dentist doctor tech cashier teller controller treasurer accountant auditor",
+    "reviewer member staff team client customer vendor supplier",
   ]
     .join(" ")
     .split(" "),
