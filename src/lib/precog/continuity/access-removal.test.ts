@@ -330,6 +330,15 @@ describe("the leaver checklist in each industry's words", () => {
       expect(words(industry)).not.toContain("practice software");
   });
 
+  it("every industry ends with the domain, DNS and admin roles", () => {
+    for (const { id } of INDUSTRIES) {
+      const items = leaverAccessItems(id);
+      expect(items.at(-1)?.id).toBe("digital_keys");
+      expect(words(id)).toContain("domain and dns registrar");
+      expect(words(id)).toContain("email super admin");
+    }
+  });
+
   it("every industry starts with pay and the bank, and has unique item ids", () => {
     for (const { id } of INDUSTRIES) {
       const items = leaverAccessItems(id);

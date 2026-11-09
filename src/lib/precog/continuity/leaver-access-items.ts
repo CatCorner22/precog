@@ -18,6 +18,8 @@ const BANK = "Bank sign-ins and cards removed, and their name off the bank's sig
 const OFFICE_KEYS = "Office keys returned and the alarm code changed";
 const EMAIL_BOOKKEEPING = "Email and bookkeeping sign-ins removed";
 const EMAIL_ACCOUNTING = "Email and accounting software sign-ins removed";
+const DIGITAL_KEYS =
+  "Owner or admin roles moved off them: domain and DNS registrar, email super admin, website, business listing, payment processor and phone system";
 
 /** The words for each item, by line of business and item id (`leaverAccessKeys`). */
 const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
@@ -30,6 +32,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
     insurance: "Insurance portal and claims clearinghouse sign-ins removed",
     keys: OFFICE_KEYS,
     email: EMAIL_BOOKKEEPING,
+    digital_keys: DIGITAL_KEYS,
   },
   retail: {
     payroll: OFF_PAYROLL,
@@ -39,6 +42,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
     online_store: "Online store and supplier account sign-ins removed",
     keys: "Store keys returned, and the alarm code and safe combination changed",
     email: EMAIL_BOOKKEEPING,
+    digital_keys: DIGITAL_KEYS,
   },
   professional_services: {
     payroll: OFF_PAYROLL,
@@ -48,6 +52,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
     agency: "Their access to tax agency and other government accounts through the firm removed",
     keys: OFFICE_KEYS,
     email: EMAIL_ACCOUNTING,
+    digital_keys: DIGITAL_KEYS,
   },
   restaurant: {
     payroll: OFF_PAYROLL,
@@ -58,6 +63,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
     keys: "Keys returned and the alarm code changed",
     ordering: "Delivery app, online ordering and supplier account sign-ins removed",
     email: EMAIL_ACCOUNTING,
+    digital_keys: DIGITAL_KEYS,
   },
   construction: {
     payroll: OFF_PAYROLL,
@@ -67,6 +73,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
     equipment:
       "Company vehicle, tools and equipment returned, and job site keys and lockbox codes changed",
     software: "Email, estimating, project and accounting software sign-ins removed",
+    digital_keys: DIGITAL_KEYS,
   },
   automotive: {
     payroll: OFF_PAYROLL,
@@ -76,6 +83,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
     parts: "Parts supplier, warranty portal and fuel card access removed",
     keys: "Building keys returned, the alarm code changed, and the customer key cabinet checked",
     email: EMAIL_ACCOUNTING,
+    digital_keys: DIGITAL_KEYS,
   },
   nonprofit: {
     payroll: OFF_PAYROLL,
@@ -86,6 +94,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
       "Online giving platform sign-in removed, and its payouts still going to the organization's bank account",
     mail: "Mail and PO box key returned, and someone still here now receives the mailed checks",
     software: "Email and organization software sign-ins removed (accounting, grants)",
+    digital_keys: DIGITAL_KEYS,
   },
   general: {
     payroll: OFF_PAYROLL,
@@ -93,6 +102,7 @@ const LABELS: Record<IndustryId, Readonly<Record<string, string>>> = {
     payroll_login: PAYROLL_LOGIN,
     keys: "Keys returned, and any alarm code or safe combination they knew changed",
     software: EMAIL_ACCOUNTING,
+    digital_keys: DIGITAL_KEYS,
   },
 };
 
