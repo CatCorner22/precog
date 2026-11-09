@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { usePresentation, useTabName } from "@/lib/precog/presentation";
+import { usePresentation } from "@/lib/precog/presentation";
 import {
   DECISION_KIND_LABEL,
   DECISION_KIND_LABEL_PRINTED_V1,
@@ -85,7 +85,6 @@ export function DecisionJournal({
   headingLevel?: 1 | 2;
 }) {
   const Heading = headingLevel === 2 ? "h2" : "h1";
-  const tabName = useTabName();
   const { say } = usePresentation();
   const {
     profile,
