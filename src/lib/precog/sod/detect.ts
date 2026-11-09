@@ -17,7 +17,10 @@ import {
   SUBSUMED_BY,
   type DutyFamily,
   type EntitlementId,
+  type HardGate,
   entitlementLabel,
+  gatedSeverity,
+  hardGate,
 } from "./conflict-rules";
 import { openFindings, thresholdCoverage } from "./open-findings";
 import { teamOwnerId } from "./owner-role";
@@ -58,6 +61,8 @@ export interface DetectedConflict {
   labelA: string;
   labelB: string;
   severity: FindingSeverity;
+  /** The hard gate that lifted this pair to critical, named on the finding. */
+  gate?: HardGate;
   title: string;
   why: string;
   fraudPath: string;
@@ -356,7 +361,8 @@ function namedFinding(
       entitlementB: heldB,
       labelA: entitlementLabel(heldA),
       labelB: entitlementLabel(heldB),
-      severity: rule.severity,
+      severity: gatedSeverity(rule),
+      gate: hardGate(rule.a, rule.b),
       title: rule.title,
       why: owner ? `${OWNER_HELD_WHY} ${rule.why}` : words(rule.why),
       fraudPath: owner ? OWNER_HELD_PATH : words(rule.fraudPath),
