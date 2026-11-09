@@ -17,6 +17,7 @@ import {
   sodDetectionOptions,
   type DetectedConflict,
   type SodDetectionReport,
+  SEVERITY_RANK,
 } from "../sod/detect";
 import { partialDualReleaseCoverage, ruleIdsOf } from "../sod/open-findings";
 import { openConflictHeadline, type OpenConflictHeadline } from "../headline/open-conflicts";
@@ -268,9 +269,12 @@ export function buildStartHereModel({
   // closes one (sod/open-findings).
   const openConflicts = sod.conflicts
     .filter((c) => !c.ownerHeld)
+    // Tier before score, so a pair a hard gate lifted leads whatever its own score.
     .sort(
       (a, b) =>
-        Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) || b.score - a.score,
+        Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) ||
+        SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+        b.score - a.score,
     );
   // The open findings, as the report counts them.
   const counts = openConflictHeadline(sod, partialCoverage);

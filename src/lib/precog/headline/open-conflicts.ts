@@ -95,7 +95,7 @@ export function openConflictBreakdown(
 /**
  * The "Who controls what" tab's badge: the open duty-conflict count the
  * Duty conflicts tile and Start here print, read aloud with its critical
- * part ("20 open duty conflicts, 4 critical"); danger while a critical one is
+ * part ("20 open duty conflicts, 5 critical"); danger while a critical one is
  * open. Null when none is open.
  */
 export function openConflictBadge(

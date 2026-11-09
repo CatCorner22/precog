@@ -163,3 +163,19 @@ describe("the preview's case", () => {
     expect(preview.first?.durationPhrase).toBeNull();
   });
 });
+
+describe("previewSetup with a hard gate", () => {
+  it("opens the demo with the gated pair, whatever its own score", () => {
+    const preview = previewSetup(
+      [
+        { name: "Bea", role: "Bookkeeper", duties: ["enter_payroll", "bank_reconcile"] },
+        { name: "Cal", role: "Office manager", duties: ["approve_vendor", "approve_invoices"] },
+        { name: "Dee", role: "Front desk", duties: ["collect_cash", "post_payments"] },
+      ],
+      "general",
+    );
+    expect(preview.first?.conflict.severity).toBe("critical");
+    expect(preview.first?.conflict.gate).toBe("statutory_liability");
+    expect(preview.first?.conflict.personName).toBe("Bea");
+  });
+});

@@ -182,7 +182,7 @@ describe("executive summary", () => {
     const held = open.filter((c) => c.personId === move!.personId);
     expect(move!.held).toBe(held.length);
     expect(model.summary.slice(0, 2)).toEqual([
-      "14 open duty conflicts, 3 of them critical, held by 4 people.",
+      "14 open duty conflicts, 4 of them critical, held by 4 people.",
       "One person holds 7 of the 14 open duty conflicts.",
     ]);
     expect(model.summary).toContain(
