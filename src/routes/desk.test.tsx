@@ -1,9 +1,10 @@
-import { createElement, type ComponentType } from "react";
+import { createElement, type ComponentType, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
+  Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
 vi.mock("@/lib/compliance/cards-server", () => ({
   searchComplianceCardsFn: vi.fn(),
@@ -27,6 +28,7 @@ describe("BlakeGPT compliance desk", () => {
       "Compliance desk | BlakeGPT",
     );
     expect(html).toContain("Cited Tennessee and federal rules for the dental office.");
+    expect(html).toContain('<a href="/licenses">Each license</a>');
     expect(html).toContain("Ask about a rule, for example: sharps disposal");
     expect(html).toContain('aria-label="Filter by section"');
   });

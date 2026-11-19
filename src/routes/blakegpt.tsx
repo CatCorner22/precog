@@ -46,6 +46,12 @@ const modules = [
     action: "Open the reference",
     href: "/practice",
   },
+  {
+    name: "Each license",
+    description: "What each Tennessee dental license may do, with cited rules and cautions.",
+    action: "Open licenses",
+    href: "/licenses",
+  },
 ];
 
 function BlakeGPTHome() {
