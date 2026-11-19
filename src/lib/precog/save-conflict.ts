@@ -15,6 +15,7 @@ import {
 } from "./practice-profile";
 import { uid } from "./text";
 import { DEFAULT_BUSINESS_ID, isBusinessId } from "./business-id";
+import { normalizePhysicalRisk } from "./physical-risk";
 
 export { QUARANTINE_PREFIX, quarantineKey } from "./practice-profile";
 
@@ -237,7 +238,12 @@ export class LocalProfileStore {
       }
     }
     const rev = this.makeRev();
-    const body = JSON.stringify(profile);
+    const body = JSON.stringify({
+      ...profile,
+      ...(profile.physicalRisk !== undefined
+        ? { physicalRisk: normalizePhysicalRisk(profile.physicalRisk) }
+        : {}),
+    });
     const stamped = `{"localRev":${JSON.stringify(rev)},"localBase":${JSON.stringify(base)}${
       body === "{}" ? "}" : `,${body.slice(1)}`
     }`;

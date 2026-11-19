@@ -2,6 +2,7 @@ import { isIndustryId } from "./industry";
 import { normalizeDecisions, type PracticeProfile } from "./practice-profile";
 import { malformedList } from "./profile-entries";
 import { RequestError } from "@/lib/request-errors";
+import { normalizePhysicalRisk } from "./physical-risk";
 import { DEFAULT_BUSINESS_ID, isBusinessId } from "./business-id";
 export { isBusinessId } from "./business-id";
 
@@ -56,6 +57,9 @@ export function validateProfileInput(input: unknown): {
     ...profile,
     businessId,
     decisions: normalizeDecisions(profile.decisions),
+    ...(profile.physicalRisk !== undefined
+      ? { physicalRisk: normalizePhysicalRisk(profile.physicalRisk) }
+      : {}),
   });
   return { profile: JSON.parse(json) as PracticeProfile, businessId, json };
 }
