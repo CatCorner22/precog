@@ -30,7 +30,7 @@ sources:
 - Treatment room fits the patient and an operating team of at least 2 who can move freely; chair or table allows airway management, quick repositioning and CPR. (6)(b)1.(i)-(ii)
 - Adequate lighting; oral and pharyngeal suction; oxygen delivery with full-face masks able to give positive pressure. (6)(b)1.(iii)-(v)
 - Recovery area with oxygen, lighting, suction and outlets (may be the treatment room); staff observe the patient at all times during recovery. (6)(b)1.(vi)
-- Backup lighting and backup suction for a power failure; right-sized equipment where children are treated. (6)(b)1.(vii)-(viii)
+- Alternate lighting and alternate suction for a power failure; right-sized equipment where children are treated. (6)(b)1.(vii)-(viii)
 - Inspect anesthesia and sedation equipment each day it is used and keep a log of the results. (6)(b)1.(ix)
 - At least 1 person besides the operating dentist present; team trained to the dentist's protocol and currently certified in BLS for Healthcare Providers or CPR/AED for Professional Rescuers (in person, manikin skills test). (6)(b)2.(i)-(ii)
 - Clinical staff in the operatory or recovery hold a current Tennessee license or registration; unlicensed staff get no licensed duties and work under direct supervision within their training. (6)(b)2.(iii)-(v)
