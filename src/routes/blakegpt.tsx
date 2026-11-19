@@ -40,6 +40,18 @@ const modules = [
     action: "Open the evaluator",
     href: "/evidence",
   },
+  {
+    name: "Practice desk",
+    description: "Operating functions, SOPs, controls, and metrics for a dental practice.",
+    action: "Open the reference",
+    href: "/practice",
+  },
+  {
+    name: "Each license",
+    description: "What each Tennessee dental license may do, with cited rules and cautions.",
+    action: "Open licenses",
+    href: "/licenses",
+  },
 ];
 
 function BlakeGPTHome() {
@@ -76,7 +88,7 @@ function BlakeGPTHome() {
 
       <section
         aria-label="BlakeGPT modules"
-        className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-3"
+        className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
       >
         {modules.map((module) => (
           <article
