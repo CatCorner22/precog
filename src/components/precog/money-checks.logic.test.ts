@@ -20,6 +20,23 @@ const base = {
   signoffs: [],
 };
 describe("money-check screen logic", () => {
+  it("keeps a closed-period finding open when the next run has no loaded closes", () => {
+    const books = importBooksCsv(
+      "date,entry_date,amount,type\n2026-10-31,2026-11-02,10,adjustment",
+    );
+    const input = { ...base, bank: importBankCsv("date,amount,description"), books };
+    const closes = ["2026-10-31"];
+    const first = runScreenChecks({ ...input, closes });
+    const previous = withMoneyRun(profile, first, base.today);
+    const finding = previous.moneyChecks!.ledger.find((r) => r.check === "closed_period_entry")!;
+    expect(finding.status).toBe("open");
+    const noCloses: string[] = [];
+    const next = runScreenChecks({ ...input, closes: noCloses.length ? noCloses : undefined });
+    expect(next.skipped).toContainEqual({ check: "closed_period_entry", missingColumn: "closes" });
+    expect(
+      withMoneyRun(previous, next, base.today).moneyChecks!.ledger.find((r) => r.id === finding.id),
+    ).toEqual(finding);
+  });
   it("lists exactly three closed months over year and leap-day boundaries", () => {
     expect(closedMonths("2027-01-01")).toEqual(["2026-12", "2026-11", "2026-10"]);
     expect(closedMonths("2024-03-31")).toEqual(["2024-02", "2024-01", "2023-12"]);

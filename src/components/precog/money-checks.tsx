@@ -73,7 +73,7 @@ function MoneyChecks() {
         bank,
         books,
         today: runToday,
-        closes,
+        closes: closes.length ? closes : undefined,
         template,
         policy: profile.dualRelease,
         decisions: profile.decisions,
