@@ -63,9 +63,11 @@ export function runAllChecks(input: AllChecksInput): ReturnType<typeof runChecks
         ? "has no completed sign-off"
         : signoff.signedBy === signoff.preparedBy
           ? "has a same-hands sign-off"
-          : daysBetween(end, signoff.signedOn)! > RECONCILIATION_LATE_DAYS
-            ? "was signed more than 30 days after month-end"
-            : undefined;
+          : signoff.signedOn < end
+            ? "was signed before the month ended"
+            : daysBetween(end, signoff.signedOn)! > RECONCILIATION_LATE_DAYS
+              ? "was signed more than 30 days after month-end"
+              : undefined;
     months.push({ end, signoff, reason });
     cursor = `${month}-01`;
   }

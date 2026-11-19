@@ -18,7 +18,7 @@ const good = (month: string): ReconciliationSignoff => ({
   month,
   preparedBy: "p1",
   signedBy: "p2",
-  signedOn: `${month}-28`,
+  signedOn: shiftDay(`${month}-01`, 35),
 });
 const input: AllChecksInput = {
   today,
@@ -116,6 +116,14 @@ describe("all nine money checks", () => {
       }),
     ).toEqual([]);
   });
+  it.each([-1, 0])("checks a sign-off %i days from month-end", (lag) => {
+    const signoffs = input.signoffs.map((s) =>
+      s.month === "2026-10" ? { ...s, signedOn: shiftDay("2026-10-31", lag) } : s,
+    );
+    expect(findings("weak_reconciliation", { signoffs }).map((f) => f.sentence)).toEqual(
+      lag < 0 ? ["The bank reconciliation for 2026-10 was signed before the month ended."] : [],
+    );
+  });
   it("does not accept a future sign-off as completed evidence", () => {
     const signoffs = input.signoffs.map((s) =>
       s.month === "2026-10" ? { ...s, signedOn: "2026-11-20" } : s,
@@ -148,7 +156,7 @@ describe("all nine money checks", () => {
       runAllChecks({ ...input, decisions: [decision(1, { reviewBy: "bad" })] }),
     ).toThrow();
     for (const signoffs of [
-      [good("2026-13")],
+      [{ ...good("2026-10"), month: "2026-13" }],
       [{ ...good("2026-10"), signedOn: "2026-02-30" }],
       [good("2026-10"), good("2026-10")],
     ]) {
