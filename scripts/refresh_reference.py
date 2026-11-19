@@ -17,7 +17,7 @@ Conventions the script relies on:
     A tag may use "see also": {{index: negligence | see also: duty of care}}
 Usage: refresh_reference.py FILE.md [--stale-days 90] [--check]  (--check exits 1 if health has findings)
 """
-import re, sys, datetime, collections
+import re, sys, datetime, collections, unicodedata
 
 HEAD = re.compile(r'^(#{1,6})\s+\[([A-Za-z0-9][\w.\-]*)\]\s+(.*?)\s*$')
 SRC = re.compile(r'^- \[(S\d+)\]\s+(.*)$')
@@ -27,8 +27,12 @@ VERIFIED = re.compile(r'^Last verified:\s*(\d{4}-\d{2}-\d{2})', re.M)
 ACCESSED = re.compile(r'Accessed (\d{4}-\d{2}-\d{2})')
 
 def slug(text):
-    t = re.sub(r'[^\w\- ]', '', text.lower()).strip().replace(' ', '-')
-    return re.sub(r'-+', '-', t)
+    text = ''.join(
+        character
+        for character in text.lower()
+        if character in '- ' or not unicodedata.category(character).startswith('P')
+    )
+    return text.replace(' ', '-')
 
 def parse(lines):
     sections = []  # dict(id, level, title, start, end, text)
