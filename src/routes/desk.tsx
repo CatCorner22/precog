@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { buttonClass } from "@/components/ui/button-variants";
 import { searchComplianceCardsFn } from "@/lib/compliance/cards-server";
 import type { ComplianceCardResult } from "@/lib/compliance/cards";
@@ -103,6 +103,12 @@ function ComplianceDesk() {
           <p className="mt-1 text-sm text-muted">
             Cited Tennessee and federal rules for the dental office.
           </p>
+          <Link
+            to="/licenses"
+            className="mt-2 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Each license
+          </Link>
         </div>
       </header>
 

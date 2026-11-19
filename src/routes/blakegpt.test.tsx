@@ -38,8 +38,8 @@ describe("BlakeGPT home", () => {
     expect(html).toContain("Welcome, Amanda. Your practice has a clear place to begin.");
   });
 
-  it("offers five modules and resolves Frontier GRC to Voyager's real tab", () => {
-    expect(html.match(/<article\b/g)).toHaveLength(5);
+  it("offers six modules and resolves Frontier GRC to Voyager's real tab", () => {
+    expect(html.match(/<article\b/g)).toHaveLength(6);
     expect(html).toContain("Internal controls and continuity for the practice.");
     expect(html).toContain(
       "Checks for invoices, notice deadlines, duty conflicts and policy wording.",
@@ -49,11 +49,15 @@ describe("BlakeGPT home", () => {
     expect(html).toContain(
       "Operating functions, SOPs, controls, and metrics for a dental practice.",
     );
+    expect(html).toContain(
+      "What each Tennessee dental license may do, with cited rules and cautions.",
+    );
     expect(html).toMatch(/href="\/"[^>]*>Open Precog<\/a>/);
     expect(html).toMatch(/href="\/\?tab=pioneer"[^>]*>Open checks<\/a>/);
     expect(html).toMatch(/href="\/desk"[^>]*>Open the desk<\/a>/);
     expect(html).toMatch(/href="\/evidence"[^>]*>Open the evaluator<\/a>/);
     expect(html).toMatch(/href="\/practice"[^>]*>Open the reference<\/a>/);
+    expect(html).toMatch(/href="\/licenses"[^>]*>Open licenses<\/a>/);
   });
 
   it("uses Reverie's unaltered hero art and a phone-to-desktop card grid", () => {
