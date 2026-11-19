@@ -58,10 +58,20 @@ describe("compliance knowledge cards", () => {
     expect(card.body).toContain("The office keeps the required record.");
   });
 
-  it("loads exactly 246 cards, including 219 verified cards", () => {
-    expect(cards).toHaveLength(246);
-    expect(cards.filter((card) => card.status === "verified")).toHaveLength(219);
+  it("loads exactly 254 cards, including 227 verified cards", () => {
+    expect(cards).toHaveLength(254);
+    expect(cards.filter((card) => card.status === "verified")).toHaveLength(227);
     expect(cards.every((card) => /^https?:\/\//.test(card.source_url))).toBe(true);
+  });
+
+  it("finds both child- and adult-abuse cards for abuse searches", () => {
+    const results = searchComplianceCards("abuse", cards).map((card) => card.id);
+    expect(results).toEqual(
+      expect.arrayContaining([
+        "tn-37-1-403-child-abuse-reporting",
+        "tn-71-6-103-adult-abuse-reporting",
+      ]),
+    );
   });
 
   it("ranks an OSHA card in the top three for sharps-container searches", () => {

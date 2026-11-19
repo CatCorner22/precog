@@ -27,7 +27,12 @@ describe("BlakeGPT compliance desk", () => {
     expect(options.head().meta.find((meta) => meta.title)?.title).toBe(
       "Compliance desk | BlakeGPT",
     );
-    expect(html).toContain("Cited Tennessee and federal rules for the dental office.");
+    expect(options.head().meta.find((meta) => meta.name === "description")?.content).toBe(
+      "Search 254 cited Tennessee and federal rule cards for the dental office.",
+    );
+    expect(html).toContain(
+      "Search 254 cited Tennessee and federal rule cards for the dental office.",
+    );
     expect(html).toContain('<a href="/licenses">Each license</a>');
     expect(html).toContain("Ask about a rule, for example: sharps disposal");
     expect(html).toContain('aria-label="Filter by section"');

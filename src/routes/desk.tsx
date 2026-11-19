@@ -11,7 +11,7 @@ export const Route = createFileRoute("/desk")({
       { title: "Compliance desk | BlakeGPT" },
       {
         name: "description",
-        content: "Search cited Tennessee and federal rules for the dental office.",
+        content: "Search 254 cited Tennessee and federal rule cards for the dental office.",
       },
     ],
   }),
@@ -101,7 +101,7 @@ function ComplianceDesk() {
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Compliance desk</h1>
           <p className="mt-1 text-sm text-muted">
-            Cited Tennessee and federal rules for the dental office.
+            Search 254 cited Tennessee and federal rule cards for the dental office.
           </p>
           <Link
             to="/licenses"
