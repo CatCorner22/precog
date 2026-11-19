@@ -1,0 +1,4 @@
+Date,Amount,Description,Reference
+2026-11-01,45.00,Synthetic receipt,B1
+2026-11-02,-12.50,Synthetic payment,B2
+2026-11-03,1240.00,Synthetic deposit,B3
