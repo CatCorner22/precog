@@ -15,6 +15,14 @@ import {
 const tactical = (_plain: string, tacticalWord: string) => tacticalWord;
 
 describe("parseHomeSearch", () => {
+  it("opens Money checks as a section inside Monthly review", () => {
+    expect(resolveNavTarget("money-checks")).toEqual({ tab: "monthly", item: "money-checks" });
+    expect(parseHomeSearch({ tab: "money-checks" })).toMatchObject({
+      tab: "monthly",
+      item: "money-checks",
+    });
+    expect(isTabId("money-checks")).toBe(false);
+  });
   it("keeps a known tab and drops an unknown one", () => {
     expect(parseHomeSearch({ tab: "procedures" })).toEqual({ tab: "procedures" });
     expect(parseHomeSearch({ tab: "bogus" })).toEqual({});

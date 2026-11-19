@@ -106,6 +106,7 @@ export interface PracticeSync {
 
 /** Every way of changing the business. */
 export interface PracticeActions {
+  setMoneyChecks: (v: SetStateAction<PracticeProfile["moneyChecks"]>) => void;
   /**
    * Rename the open business. With `businessId`, only while that business is
    * still the open one, so a late commit never renames the business opened

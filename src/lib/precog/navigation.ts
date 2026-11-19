@@ -79,6 +79,12 @@ export type TabId = (typeof TAB_WORDS)[number]["id"];
  * the place the owner lands on, not the tab around it.
  */
 export const TAB_ALIASES = {
+  "money-checks": {
+    tab: "monthly",
+    item: "money-checks",
+    label: "Money checks",
+    tactical: "Money checks",
+  },
   // A starter control confirmed "This runs here", a control recorded as
   // already in place, and the retired "Where risk sits" tab all open the
   // Controls view of Who controls what.
