@@ -17,6 +17,7 @@ const OPTIONAL = [
   "reverses",
   "closed_period",
   "entry_date",
+  "channel",
 ] as const;
 type OptionalColumn = (typeof OPTIONAL)[number];
 export const BOOKS_TYPES = [
@@ -64,6 +65,7 @@ const ALIASES: Record<string, string[]> = {
   approved_by: ["approved by", "approver"],
   reverses: ["reverses", "reverses reference"],
   closed_period: ["closed period"],
+  channel: ["channel", "method", "payment method"],
 };
 
 export const importBankCsv = (text: string): MoneyImport<BankRow> =>
