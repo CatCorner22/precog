@@ -154,14 +154,17 @@ function read(text: string, books: boolean): MoneyImport<BankRow | BooksRow> {
     }
     let amountCents = (sign === null ? amount.value : Math.abs(amount.value) * sign) as Cents;
     if (books) {
-      // Books types set cash direction; adjustments/reversals retain file sign, with debits negative.
-      const fileValue = split && debit ? -Math.abs(amount.value) : amount.value;
+      // Books types set cash direction; adjustments/reversals retain the file's direction, with debits negative.
       amountCents = (
         ["payment_received", "deposit"].includes(type)
           ? Math.abs(amount.value)
           : ["payment_out", "refund", "write_off", "payroll"].includes(type)
             ? -Math.abs(amount.value)
-            : fileValue
+            : split
+              ? debit
+                ? -Math.abs(amount.value)
+                : amount.value
+              : amountCents
       ) as Cents;
     }
     const optional = Object.fromEntries(

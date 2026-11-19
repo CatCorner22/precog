@@ -216,4 +216,14 @@ describe("money file imports", () => {
     ])
       expect(importBankCsv(csv).issues).not.toHaveLength(0);
   });
+  it.each(["adjustment", "reversal"])("keeps the direction column for books %s", (type) => {
+    for (const [direction, cents] of [
+      ["out", -1200],
+      ["in", 1200],
+    ] as const)
+      expect(
+        importBooksCsv(`Effective date,Amount,Direction,Type\n11/1/26,12.00,${direction},${type}`)
+          .rows[0].amountCents,
+      ).toBe(cents);
+  });
 });
