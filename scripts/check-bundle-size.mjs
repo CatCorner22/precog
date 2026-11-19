@@ -268,6 +268,11 @@
  * measures 926.9 KB gzipped in 147 chunks. Raise the total budget from 923 KB
  * to 929 KB, the next whole KB above the measurement plus 2 KB of CI
  * variation. The reference Markdown and benchmark source remain server-only.
+ *
+ * 2026-11-19: the lazy Money checks screen adds about 7.9 KB gzipped,
+ * plus about 0.5 KB in practice-profile for money-check normalization.
+ * Raise only the total budget from 929 KB to 940 KB for this screen;
+ * the 118 KB largest-chunk budget stays unchanged.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -283,7 +288,7 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 // the largest chunk was unchanged.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 929 * 1024,
+  totalGzipBytes: 940 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
