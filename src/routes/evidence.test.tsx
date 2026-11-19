@@ -11,7 +11,7 @@ vi.mock("@/lib/evidence/reference-server", () => ({
   listEvidenceModules: vi.fn(),
 }));
 
-import { Route } from "./evidence";
+import { Route, SampleSizeFields } from "./evidence";
 
 type RouteLike = {
   options: {
@@ -43,4 +43,21 @@ describe("Study evaluator", () => {
     expect(html).toContain('role="tablist" aria-label="Analysis type"');
     expect(html).toContain("Before-and-after");
   });
+
+  it.each(["continuous", "before-after"] as const)(
+    "shows shared sample-size inputs for %s analysis",
+    (tab) => {
+      const fields = renderToStaticMarkup(
+        createElement(SampleSizeFields, {
+          tab,
+          treatmentN: "100",
+          setTreatmentN: () => {},
+          controlN: "100",
+          setControlN: () => {},
+        }),
+      );
+      expect(fields).toContain("Treatment n");
+      expect(fields).toContain("Control n");
+    },
+  );
 });

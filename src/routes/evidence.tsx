@@ -267,6 +267,32 @@ function Field({
   );
 }
 
+export function SampleSizeFields({
+  tab,
+  treatmentN,
+  setTreatmentN,
+  controlN,
+  setControlN,
+}: {
+  tab: AnalysisTab;
+  treatmentN: string;
+  setTreatmentN: (value: string) => void;
+  controlN: string;
+  setControlN: (value: string) => void;
+}) {
+  const analysis = tab === "before-after" ? "before-and-after" : tab;
+  return (
+    <div
+      className="col-span-full grid gap-4 sm:grid-cols-2"
+      role="group"
+      aria-label={`Sample sizes for ${analysis} analysis`}
+    >
+      <Field id="treatment-n" label="Treatment n" value={treatmentN} onChange={setTreatmentN} />
+      <Field id="control-n" label="Control n" value={controlN} onChange={setControlN} />
+    </div>
+  );
+}
+
 function StudyEvaluator() {
   const [tab, setTab] = useState<AnalysisTab>("binary");
   const [outcome, setOutcome] = useState("Specified outcome");
@@ -474,6 +500,13 @@ function StudyEvaluator() {
             value={timeHorizon}
             onChange={setTimeHorizon}
           />
+          <SampleSizeFields
+            tab={tab}
+            treatmentN={treatmentN}
+            setTreatmentN={setTreatmentN}
+            controlN={controlN}
+            setControlN={setControlN}
+          />
           {tab === "binary" ? (
             <>
               <Field
@@ -483,18 +516,11 @@ function StudyEvaluator() {
                 onChange={setTreatmentEvents}
               />
               <Field
-                id="treatment-n"
-                label="Treatment n"
-                value={treatmentN}
-                onChange={setTreatmentN}
-              />
-              <Field
                 id="control-events"
                 label="Control events"
                 value={controlEvents}
                 onChange={setControlEvents}
               />
-              <Field id="control-n" label="Control n" value={controlN} onChange={setControlN} />
               <label className="block text-sm font-medium" htmlFor="outcome-kind">
                 Event type
                 <select
