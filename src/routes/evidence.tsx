@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { buttonClass } from "@/components/ui/button-variants";
+import { format } from "@/lib/evidence/format";
 import { analyzeBinary, analyzeContinuous, analyzePrePost } from "@/lib/evidence/statistics";
 import {
   getEvidenceModule,
@@ -35,12 +36,6 @@ const ERROR_FALLBACK = "The analysis could not be loaded.";
 
 function numberValue(value: string) {
   return value.trim() ? Number(value) : Number.NaN;
-}
-
-function format(value: number, digits = 2) {
-  return Number.isFinite(value)
-    ? value.toLocaleString("en-US", { maximumFractionDigits: digits })
-    : "not finite";
 }
 
 function interval(value: { lower: number; upper: number } | null | undefined, scale = 1) {
