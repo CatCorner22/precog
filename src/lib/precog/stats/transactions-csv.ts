@@ -64,8 +64,9 @@ export function parseTransactionsCsv(text: string): {
     const extra: Partial<Transaction> = {};
     for (const [field, names] of Object.entries(aliases)) {
       const [name, value] =
-        names.map((name) => [name, cell(cells, name)] as const).find(([, v]) => v !== undefined) ??
-        [];
+        names
+          .map((name) => [name, cell(cells, name)] as const)
+          .find(([, v]) => v !== undefined && v !== "") ?? [];
       if (!value) continue;
       if (field === "time" && !VALID_TIME.test(value)) {
         issues.push(`Row ${row}: time not recognized; use HH:mm`);

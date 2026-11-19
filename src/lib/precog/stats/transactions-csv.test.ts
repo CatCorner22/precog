@@ -2,6 +2,33 @@ import { describe, expect, it } from "vitest";
 import { parseTransactionDate, parseTransactionsCsv } from "./transactions-csv";
 
 describe("parseTransactionsCsv", () => {
+  it("takes the first non-empty alias, including its number-column provenance", () => {
+    const result = parseTransactionsCsv(
+      "date,amount,payee,vendor,supplier,number,check number,invoice number,time,entry time,account,ledger account,channel,method\n" +
+        "2025-01-01,-10,   ,Acme,Other,,,INV-001,,22:00,,Bank,,ach\n" +
+        "2025-01-02,-10,First,Second,Third,001,002,003,12:00,13:00,Bank,Other,check,ach\n",
+    );
+    expect(result.issues).toEqual([]);
+    expect(result.transactions[0]).toMatchObject({
+      payee: "Acme",
+      number: "INV-001",
+      numberType: "invoice",
+      time: "22:00",
+      account: "Bank",
+      channel: "ach",
+    });
+    expect(result.transactions[1]).toMatchObject({
+      payee: "First",
+      number: "001",
+      time: "12:00",
+      account: "Bank",
+      channel: "check",
+    });
+    expect(result.transactions[1]).not.toHaveProperty("numberType");
+    expect(
+      parseTransactionsCsv("date,amount,payee,vendor\n2025-01-01,1,,").transactions[0],
+    ).not.toHaveProperty("payee");
+  });
   it("parses currency, parentheses negatives, optional fields, and bad-row issues", () => {
     const result = parseTransactionsCsv(
       "DATE,Amount,Kind,Memo,Person\r\n" +
