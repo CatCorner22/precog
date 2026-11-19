@@ -6,6 +6,19 @@ if [[ ! ${CRON_SECRET:-} =~ ^[A-Za-z0-9._~+/-]+=*$ ]]; then
   exit 1
 fi
 
+origin="http://127.0.0.1:${PORT:-8080}"
+for ((attempt = 1; ; attempt++)); do
+  status=0
+  curl --disable --noproxy '*' --fail --silent --max-time 5 --output /dev/null \
+    "$origin/api/health" || status=$?
+  if ((status == 0)); then break; fi
+  if ((status != 7 || attempt == 60)); then
+    printf 'Precog health check failed (curl exit %s). The digest was not sent.\n' "$status" >&2
+    exit "$status"
+  fi
+  sleep 2
+done
+
 printf 'Authorization: Bearer %s\n' "$CRON_SECRET" |
   curl --disable --noproxy '*' --fail --silent --show-error --max-time 300 \
-    --header @- "http://127.0.0.1:${PORT:-8080}/api/cron/digest"
+    --header @- "$origin/api/cron/digest"

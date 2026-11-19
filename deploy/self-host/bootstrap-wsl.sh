@@ -30,9 +30,9 @@ curl -fsSL --retry 3 https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key |
 curl -fsSL --retry 3 https://www.postgresql.org/media/keys/ACCC4CF8.asc -o "$scratch/pgdg.asc"
 curl -fsSL --retry 3 https://pkg.cloudflare.com/cloudflare-main.gpg -o "$scratch/cloudflare.gpg"
 install -m 0644 "$scratch/"{nodesource.gpg,pgdg.asc,cloudflare.gpg} /etc/apt/keyrings/
-printf '%s\n' +  'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main' > /etc/apt/sources.list.d/precog-nodesource.list
-printf '%s\n' +  'deb [signed-by=/etc/apt/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' > /etc/apt/sources.list.d/precog-pgdg.list
-printf '%s\n' +  'deb [signed-by=/etc/apt/keyrings/cloudflare.gpg] https://pkg.cloudflare.com/cloudflared noble main' > /etc/apt/sources.list.d/precog-cloudflared.list
+printf '%s\n' 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main' > /etc/apt/sources.list.d/precog-nodesource.list
+printf '%s\n' 'deb [signed-by=/etc/apt/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main' > /etc/apt/sources.list.d/precog-pgdg.list
+printf '%s\n' 'deb [signed-by=/etc/apt/keyrings/cloudflare.gpg] https://pkg.cloudflare.com/cloudflared noble main' > /etc/apt/sources.list.d/precog-cloudflared.list
 
 apt-get -o APT::Update::Error-Mode=any update
 apt-get install -y --no-install-recommends 'nodejs=22.*' postgresql-16 postgresql-client-16 cloudflared
