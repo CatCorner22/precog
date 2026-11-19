@@ -288,7 +288,10 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 // the largest chunk was unchanged.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 932 * 1024,
+  // 2026-11-19: the optional lazy building/pipe card and normalized saved
+  // inputs measure 935.4 KB on latest main. Allow the next whole KB plus
+  // 2 KB of CI variation. The 118 KB per-chunk cap is unchanged.
+  totalGzipBytes: 938 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

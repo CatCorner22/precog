@@ -115,6 +115,7 @@ export interface PracticeActions {
   setIndustry: (industry: IndustryId) => void;
   setStaff: (staff: SetStateAction<StaffComposition>) => void;
   setRiskVariables: (v: SetStateAction<RiskVariableState>) => void;
+  setPhysicalRisk: (v: PracticeProfile["physicalRisk"]) => void;
   setDualRelease: (v: SetStateAction<DualReleasePolicy>) => void;
   addDecision: (input: DecisionInput) => void;
   removeDecision: (id: string) => void;

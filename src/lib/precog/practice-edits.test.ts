@@ -118,6 +118,10 @@ const CASES: Record<
     ) => PracticeProfile;
   }
 > = {
+  setPhysicalRisk: {
+    run: (e) => e.setPhysicalRisk({ pipeMaterial: "pvc", pipeAge: 12 }),
+    expected: (p) => ({ ...p, physicalRisk: { pipeMaterial: "pvc", pipeAge: 12 } }),
+  },
   setPracticeName: {
     run: (e) => e.setPracticeName("Ruiz Dental", undefined),
     expected: (p) => withPracticeName(p, "Ruiz Dental", undefined),
@@ -329,7 +333,7 @@ describe("makeProfileEdits", () => {
   it("returns the 32 edits of PracticeActions and nothing else", () => {
     const { edits } = harness(defaultProfile("dental"));
     expect(Object.keys(edits).sort()).toEqual([...EDIT_NAMES].sort());
-    expect(EDIT_NAMES).toHaveLength(32);
+    expect(EDIT_NAMES).toHaveLength(33);
   });
 
   it.each(EDIT_NAMES)("%s dispatches what its profile-actions function returns", (name) => {

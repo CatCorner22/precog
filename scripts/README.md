@@ -30,6 +30,11 @@ Each needs a local disposable Postgres in `DATABASE_URL` and its own opt-in flag
 
 ## Browser suites
 
+`node scripts/e2e-physical-risk.mjs <base-url>` runs locally, signed out: enter the
+optional building/pipe inputs under What could happen, see bands and reload to
+verify guest persistence. `E2E_PHYSICAL_SCREENSHOT=<path>` captures the saved card.
+It uses `lib/e2e.mjs` and is an opt-in local suite, not a CI job.
+
 Each takes the base URL as its first argument (default `http://127.0.0.1:8080/`)
 and needs `npx playwright install --with-deps chromium` once.
 

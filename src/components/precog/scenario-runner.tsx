@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { GitBranch, GitCompare, LineChart, ShieldOff, SlidersHorizontal } from "lucide-react";
 import { runPrecogScenario } from "@/lib/precog/engine";
 import type { StaffComposition } from "@/lib/precog/types";
@@ -18,6 +18,10 @@ import { parseScenarioItem, scenarioItem, type ScenarioView } from "./scenario-l
 import type { StaffWhatIf } from "./staff-what-if";
 import { SingleScenarioView } from "./scenario-single-view";
 import { ScenarioVariablesView } from "./scenario-variables-view";
+
+const PhysicalRiskCard = lazy(() =>
+  import("./physical-risk-card").then((module) => ({ default: module.PhysicalRiskCard })),
+);
 
 /**
  * What could happen: one scenario's assumed figures, a comparison of options,
@@ -41,6 +45,7 @@ export function ScenarioRunner({ item, onNavigate }: { item?: string | null; onN
   const [failureTarget, setFailureTarget] = useState(linked.failureTarget);
   const [mitigations, setMitigations] = useState<string[]>([]);
   const [whatIf, setWhatIf] = useState<StaffComposition | null>(null);
+  const [physicalOpen, setPhysicalOpen] = useState(false);
 
   // Adjust during render so a changed link never shows the previous view.
   const [linkedItem, setLinkedItem] = useState(item);
@@ -195,6 +200,16 @@ export function ScenarioRunner({ item, onNavigate }: { item?: string | null; onN
           onOpenFailure={openFailure}
         />
       )}
+      <details onToggle={(event) => setPhysicalOpen(event.currentTarget.open)}>
+        <summary className="cursor-pointer rounded-md border border-border p-3 text-sm font-medium">
+          Building and pipe estimate (optional)
+        </summary>
+        {physicalOpen && (
+          <Suspense fallback={<p role="status">Loading building and pipe estimate…</p>}>
+            <PhysicalRiskCard key={`${profile.businessId ?? ""}:${profile.industry}`} />
+          </Suspense>
+        )}
+      </details>
     </div>
   );
 }

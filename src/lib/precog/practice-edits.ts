@@ -67,6 +67,7 @@ import {
   type DecisionInput,
 } from "./profile-actions";
 import { localDateKey } from "./dates";
+import { normalizePhysicalRisk } from "./physical-risk";
 import type { Place, Procedure, ProcedureProof } from "./procedures/types";
 import type { VerifyingAccount } from "./procedures/lifecycle";
 
@@ -125,6 +126,10 @@ export function makeProfileEdits({
 
   const setRiskVariables = (v: SetStateAction<RiskVariableState>) => {
     setProfile((p) => withRiskVariables(p, resolveUpdate(v, p.riskVariables)));
+  };
+
+  const setPhysicalRisk = (v: PracticeProfile["physicalRisk"]) => {
+    setProfile((p) => ({ ...p, physicalRisk: normalizePhysicalRisk(v) }));
   };
 
   const setDualRelease = (v: SetStateAction<DualReleasePolicy>) => {
@@ -295,6 +300,7 @@ export function makeProfileEdits({
     setIndustry,
     setStaff,
     setRiskVariables,
+    setPhysicalRisk,
     setDualRelease,
     addDecision,
     removeDecision,

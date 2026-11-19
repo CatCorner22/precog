@@ -58,6 +58,7 @@ const READ_ONLY_ACTIONS: PracticeActions = {
   setIndustry: noop,
   setStaff: noop,
   setRiskVariables: noop,
+  setPhysicalRisk: noop,
   setDualRelease: noop,
   addDecision: noop,
   removeDecision: noop,
