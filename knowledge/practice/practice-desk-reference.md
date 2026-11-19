@@ -751,8 +751,8 @@ Last verified: 2026-11-19
 <!-- authorities:start -->
 - [S1] Blake Reagan research package, _Turnaround plan template_, 2026-11-12 → §10.01, 10.02, 10.03, 10.04, 11.01, 11.02, 11.03, 11.04, 12.01, 12.02, 12.03, 12.04, 13.01, 13.02, 13.03, 13.04, 14.01, 14.02, 14.03, 14.04, 15.01, 15.02, 15.03, 15.04, 16.01, 16.02, 16.03, 16.04, 17.01, 17.02, 17.03, 17.04, 18.01, 18.02, 18.03, 18.04, 19.01, 19.02, 19.03, 19.04, 20.01, 20.02, 20.03, 20.04, 21.01, 21.02, 21.03, 21.04, 22.01, 22.02, 22.03, 22.04, 23.01, 23.02, 23.03, 23.04, 24.01, 24.02, 24.03, 24.04, 25.01, 25.02, 25.03, 25.04, 26.01, 26.02, 26.04, 70.03
 - [S2] Blake Reagan research package, _Prioritization rubric_, 2026-11-12 → §30.01, 30.02, 30.03
-- [S3] Blake Reagan research package, _Core SOP manual_, 2026-11-12 → §40.01
-- [S4] Blake Reagan research package, _Operations training and cross-training_, 2026-11-12 → §26.03, 50.01, 50.02, 50.03, 50.04
+- [S3] Blake Reagan research package, _Core SOP manual_, 2026-11-12 → §10.03, 11.02, 11.03, 12.02, 12.03, 13.02, 14.02, 14.03, 15.02, 16.02, 16.03, 17.02, 17.03, 17.04, 18.02, 18.03, 19.02, 20.02, 22.02, 22.03, 23.02, 24.02, 24.03, 25.02, 25.03, 40.01
+- [S4] Blake Reagan research package, _Operations training and cross-training_, 2026-11-12 → §13.03, 19.03, 20.03, 26.01, 26.02, 26.03, 26.04, 50.01, 50.02, 50.03, 50.04
 - [S5] Blake Reagan research package, _Phase 0 baseline audit protocol_, 2026-11-12 → §70.01, 70.02
 - [S6] Blake Reagan research package, _Patient survey and retention guide_, 2026-11-12 → §60.01, 60.02, 60.03, 60.04
 <!-- authorities:end -->

@@ -21,7 +21,8 @@ import re, sys, datetime, collections, unicodedata
 
 HEAD = re.compile(r'^(#{1,6})\s+\[([A-Za-z0-9][\w.\-]*)\]\s+(.*?)\s*$')
 SRC = re.compile(r'^- \[(S\d+)\]\s+(.*)$')
-CITE = re.compile(r'\[(S\d+)(?: at [^\]]+)?\]')
+CITE = re.compile(r'\[([^\]]+)\]')
+CITE_KEY = re.compile(r'\b(S\d+)\b')
 TAG = re.compile(r'\{\{index:\s*([^|}]+?)\s*(?:\|\s*([^}]*?))?\s*\}\}')
 VERIFIED = re.compile(r'^Last verified:\s*(\d{4}-\d{2}-\d{2})', re.M)
 ACCESSED = re.compile(r'Accessed (\d{4}-\d{2}-\d{2})')
@@ -102,7 +103,12 @@ def main():
         body = s['scan']
         if s['title'].lower().startswith(('sources', 'cite index', 'authorities')):
             continue
-        for key in sorted(set(CITE.findall(body)), key=lambda k: int(k[1:])):
+        keys = {
+            key
+            for citation in CITE.findall(body)
+            for key in CITE_KEY.findall(citation)
+        }
+        for key in sorted(keys, key=lambda k: int(k[1:])):
             (cited_in if key in sources else undefined)[key].append(s['id'])
     auth = []
     for key in sorted(sources, key=lambda k: int(k[1:])):
