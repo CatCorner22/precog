@@ -24,6 +24,7 @@ export interface Transaction {
   personId?: string;
   payee?: string;
   number?: string;
+  numberType?: "check" | "invoice";
   time?: string;
   account?: string;
   channel?: string;

@@ -58,6 +58,42 @@ describe("additional forensic checks", () => {
       )?.summary,
     ).toContain("99999999999999997");
   });
+  it("keeps invoices in each supplier's series and checks account-wide", () => {
+    const invoices = parseTransactionsCsv(
+      "date,amount,payee,invoice number,account\n2025-01-01,10,Acme,INV-001,bank\n2025-01-02,10,Other,INV-001,bank",
+    ).transactions;
+    expect(invoices[0]).toMatchObject({ number: "INV-001", numberType: "invoice" });
+    expect(finding(invoices, "number_sequence")?.summary).toBe(
+      "0 missing numbers and 0 repeated numbers within numbered series.",
+    );
+    const checks = parseTransactionsCsv(
+      "date,amount,payee,check number,account\n2025-01-01,-10,Acme,001,bank\n2025-01-02,-10,Other,002,bank\n2025-01-03,-10,Acme,003,bank",
+    ).transactions;
+    expect(checks[0]).toMatchObject({ number: "001", numberType: "check" });
+    expect(finding(checks, "number_sequence")?.summary).toBe(
+      "0 missing numbers and 0 repeated numbers within numbered series.",
+    );
+    expect(
+      finding([{ ...checks[0], number: "002" }, checks[1]], "number_sequence")?.summary,
+    ).toContain("1 repeated numbers");
+    expect(finding(invoices, "number_sequence")).toEqual(
+      finding([...invoices].reverse(), "number_sequence"),
+    );
+  });
+  it("does not guess an invoice series without a supplier or infer a generic number's type", () => {
+    const invoices = parseTransactionsCsv(
+      "date,amount,invoice number\n2025-01-01,10,INV-001\n2025-01-02,10,INV-001",
+    ).transactions;
+    const result = oddTransactions(invoices, options);
+    expect(result.findings.find((f) => f.id === "number_sequence")).toBeUndefined();
+    expect(result.skipped).toContainEqual({
+      id: "number_sequence",
+      reason: "Invoice numbers need a payee to identify their series.",
+    });
+    expect(
+      parseTransactionsCsv("date,amount,number\n2025-01-01,10,001").transactions[0],
+    ).not.toHaveProperty("numberType");
+  });
   it("gates weekend checks on times/hours and tests late-night clock boundaries", () => {
     for (const [time, severity] of [
       ["05:59", "watch"],

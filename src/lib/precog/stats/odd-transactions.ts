@@ -111,16 +111,28 @@ export function oddTransactions(
     );
   }
 
-  const numbered = rows.filter((t) => /\d+$/.test(t.number ?? ""));
-  if (!numbered.length) skip("number_sequence", "Needs check or invoice numbers ending in digits.");
-  else {
+  const hasNumber = (t: Transaction) => /\d+$/.test(t.number ?? "");
+  const missingInvoicePayee = rows.some(
+    (t) => hasNumber(t) && t.numberType === "invoice" && !t.payee?.trim(),
+  );
+  const numbered = rows.filter(
+    (t) => hasNumber(t) && (t.numberType !== "invoice" || t.payee?.trim()),
+  );
+  if (missingInvoicePayee)
+    skip("number_sequence", "Invoice numbers need a payee to identify their series.");
+  if (!numbered.length) {
+    if (!missingInvoicePayee)
+      skip("number_sequence", "Needs check or invoice numbers ending in digits.");
+  } else {
     const series = new Map<string, Map<bigint, Transaction[]>>();
     for (const t of numbered) {
       const [, prefix, digits] = /^(.*?)(\d+)$/.exec(t.number!)!;
       const id = JSON.stringify([
+        t.numberType ?? "unspecified",
         key(prefix),
         key(t.account ?? ""),
-        key(t.channel ?? t.kind ?? ""),
+        t.numberType === "check" ? "" : key(t.channel ?? t.kind ?? ""),
+        t.numberType === "invoice" ? key(t.payee!) : "",
       ]);
       const group = series.get(id) ?? new Map<bigint, Transaction[]>();
       const n = BigInt(digits);
@@ -153,7 +165,7 @@ export function oddTransactions(
       matches,
       false,
       [
-        "Series are separated by prefix, account and channel or kind. Missing numbers may be outside the uploaded records.",
+        "Series are separated by number type, prefix and account. Invoice series also use payee; untyped series retain channel or kind. Missing numbers may be outside the uploaded records.",
       ],
     );
   }
