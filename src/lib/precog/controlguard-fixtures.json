@@ -1,0 +1,790 @@
+{
+  "cases": [
+    {
+      "tool": "price",
+      "args": {
+        "quantity": 3,
+        "invoice_pack": 12,
+        "po_pack": 24,
+        "billed_price": 80,
+        "contract_list_price": 120,
+        "discount": 0.2
+      },
+      "result": {
+        "invoice_unit_price": 6.666666666666667,
+        "truth_unit_price": 4.0,
+        "truth_total": 144.0,
+        "billed_total": 240.0,
+        "overcharge": 96.0,
+        "flags": ["INV-TRAP-04"],
+        "warnings": []
+      }
+    },
+    {
+      "tool": "price",
+      "args": {
+        "quantity": 1,
+        "invoice_pack": 0,
+        "po_pack": 0,
+        "billed_price": 2,
+        "contract_list_price": 3,
+        "discount": 0
+      },
+      "result": {
+        "invoice_unit_price": 2000000000.0,
+        "truth_unit_price": 3000000000.0,
+        "truth_total": 0.0,
+        "billed_total": 2.0,
+        "overcharge": 2.0,
+        "flags": [],
+        "warnings": [
+          "A pack size is zero or too small. Check the pack sizes before using this amount."
+        ]
+      }
+    },
+    {
+      "tool": "price",
+      "args": {
+        "quantity": 1,
+        "invoice_pack": 1,
+        "po_pack": 1,
+        "billed_price": 10,
+        "contract_list_price": 100,
+        "discount": 0.9
+      },
+      "result": {
+        "invoice_unit_price": 10.0,
+        "truth_unit_price": 10.0,
+        "truth_total": 10.0,
+        "billed_total": 10.0,
+        "overcharge": 0.0,
+        "flags": [],
+        "warnings": []
+      }
+    },
+    {
+      "tool": "price",
+      "args": {
+        "quantity": 1,
+        "invoice_pack": 3,
+        "po_pack": 3,
+        "billed_price": 1,
+        "contract_list_price": 1,
+        "discount": 0
+      },
+      "result": {
+        "invoice_unit_price": 0.3333333333333333,
+        "truth_unit_price": 0.3333333333333333,
+        "truth_total": 1.0,
+        "billed_total": 1.0,
+        "overcharge": 0.0,
+        "flags": [],
+        "warnings": []
+      }
+    },
+    {
+      "tool": "skim",
+      "args": {
+        "tolerance": 0.1,
+        "invoices": [
+          {
+            "invoice_unit_price": 1.06,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.08,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.1,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 0.95,
+            "po_unit_price": 1
+          }
+        ]
+      },
+      "result": {
+        "sample_size": 4,
+        "eligible": true,
+        "positive_skew": 0.75,
+        "ceiling_hug": 0.5,
+        "flagged": true,
+        "flags": ["TW-01", "INV-TRAP-05"],
+        "cusum_evaluated": false
+      }
+    },
+    {
+      "tool": "skim",
+      "args": {
+        "tolerance": 0.1,
+        "invoices": [
+          {
+            "invoice_unit_price": 1.1,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.1,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.1,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.01,
+            "po_unit_price": 1
+          }
+        ]
+      },
+      "result": {
+        "sample_size": 4,
+        "eligible": true,
+        "positive_skew": 1.0,
+        "ceiling_hug": 0.0,
+        "flagged": false,
+        "flags": [],
+        "cusum_evaluated": false
+      }
+    },
+    {
+      "tool": "skim",
+      "args": {
+        "tolerance": 0.1,
+        "invoices": [
+          {
+            "invoice_unit_price": 1.06,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.06,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.06,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.08,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.09,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.1,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1.01,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 1,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 0.99,
+            "po_unit_price": 1
+          },
+          {
+            "invoice_unit_price": 0.95,
+            "po_unit_price": 1
+          }
+        ]
+      },
+      "result": {
+        "sample_size": 10,
+        "eligible": true,
+        "positive_skew": 0.7,
+        "ceiling_hug": 0.5,
+        "flagged": true,
+        "flags": ["TW-01", "INV-TRAP-05"],
+        "cusum_evaluated": false
+      }
+    },
+    {
+      "tool": "skim",
+      "args": {
+        "tolerance": 0.1,
+        "invoices": []
+      },
+      "result": {
+        "sample_size": 0,
+        "eligible": false,
+        "positive_skew": null,
+        "ceiling_hug": null,
+        "flagged": false,
+        "flags": [],
+        "cusum_evaluated": false
+      }
+    },
+    {
+      "tool": "cliff",
+      "args": {
+        "start": "2024-01-31",
+        "term_months": 1,
+        "notice_days": 30
+      },
+      "result": {
+        "start": "2024-01-31",
+        "start_clamped": false,
+        "expiration": "2024-02-29",
+        "cliff": "2024-01-30",
+        "alerts": {
+          "75": "2023-11-16",
+          "60": "2023-12-01",
+          "30": "2023-12-31"
+        }
+      }
+    },
+    {
+      "tool": "cliff",
+      "args": {
+        "start": "2101-02-31",
+        "term_days": 120,
+        "notice_days": 30
+      },
+      "result": {
+        "start": "2100-02-28",
+        "start_clamped": true,
+        "expiration": "2100-06-28",
+        "cliff": "2100-05-29",
+        "alerts": {
+          "75": "2100-03-15",
+          "60": "2100-03-30",
+          "30": "2100-04-29"
+        }
+      }
+    },
+    {
+      "tool": "leave",
+      "args": {
+        "text": "Use 1–2 days per month, half-day per year, or 1 to 2 days. Give 3 days notice."
+      },
+      "result": {
+        "text": "Use 8.0–16.0 hours per calendar month, 4.0 hours per year, or 8.0 to 16.0 hours. Give 3 days notice.",
+        "replacements": 3,
+        "unresolved_day_units": true,
+        "minimum_increment_hours": 1.0,
+        "increment_valid": null
+      }
+    },
+    {
+      "tool": "leave",
+      "args": {
+        "text": "Give 1 day’s notice, 1 day's notice, 3 days’ notice, or 3 days' notice. Use 2 days of leave."
+      },
+      "result": {
+        "text": "Give 1 day’s notice, 1 day's notice, 3 days’ notice, or 3 days' notice. Use 16.0 hours of leave.",
+        "replacements": 1,
+        "unresolved_day_units": true,
+        "minimum_increment_hours": 1.0,
+        "increment_valid": null
+      }
+    },
+    {
+      "tool": "leave",
+      "args": {
+        "text": "Use 0.7 days",
+        "shift_hours": 7.3,
+        "kind": "statutory_leave",
+        "usage_increment_hours": 0.2
+      },
+      "result": {
+        "text": "Use 5.11 hours",
+        "replacements": 1,
+        "unresolved_day_units": false,
+        "minimum_increment_hours": 0.25,
+        "increment_valid": false
+      }
+    },
+    {
+      "tool": "policy",
+      "args": {
+        "text": "First, the log is checked promptly.",
+        "title": "Policy: Finance--Payments. FIN Policy 1"
+      },
+      "result": {
+        "title_valid": true,
+        "flags": [
+          {
+            "term": "is checked",
+            "offset": 15,
+            "suggestion": "Check whether the sentence names the actor.",
+            "review": true
+          },
+          {
+            "term": "promptly",
+            "offset": 26,
+            "suggestion": null,
+            "review": false
+          }
+        ],
+        "passes_screen": false,
+        "lexicon_complete": false
+      }
+    },
+    {
+      "tool": "policy",
+      "args": {
+        "text": "📌 Within 3 days of receipt, it shall be paid.",
+        "kind": "contract",
+        "title": "Expenses"
+      },
+      "result": {
+        "title_valid": false,
+        "flags": [
+          {
+            "term": "Within 3 days of",
+            "offset": 2,
+            "suggestion": "Name the start event and state the deadline.",
+            "review": true
+          },
+          {
+            "term": "shall",
+            "offset": 31,
+            "suggestion": "Check whether a party has a duty to act.",
+            "review": true
+          },
+          {
+            "term": "be paid",
+            "offset": 37,
+            "suggestion": "Check whether the sentence names the actor.",
+            "review": true
+          }
+        ],
+        "passes_screen": false,
+        "lexicon_complete": false
+      }
+    },
+    {
+      "tool": "triage",
+      "args": {
+        "gates": {
+          "personal_statutory_liability": false,
+          "irreversible_money_out": false,
+          "ability_to_operate": false,
+          "active_incident": true
+        }
+      },
+      "result": {
+        "tier": 1,
+        "triggered_gates": ["active_incident"],
+        "score": null,
+        "permanent_fix_days": 30,
+        "interim_control_days": 7
+      }
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 10,
+        "exploitability": 5.99,
+        "subject": "Cash reviewer"
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P2",
+        "score": 59.9,
+        "remediation_hours": 336,
+        "next_step": "Remediate within 14 calendar days.",
+        "factor": 1.0,
+        "proof_status": "not_requested",
+        "signed_at": null
+      }
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 5,
+        "exploitability": 6.98,
+        "subject": "Cash reviewer"
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P3",
+        "score": 34.9,
+        "remediation_hours": null,
+        "next_step": "Monitor weekly or monthly.",
+        "factor": 1.0,
+        "proof_status": "not_requested",
+        "signed_at": null
+      }
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 6.103515625,
+        "exploitability": 9.8304,
+        "subject": "Cash reviewer"
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P1",
+        "score": 60.0,
+        "remediation_hours": 48,
+        "next_step": "Remediate now.",
+        "factor": 1.0,
+        "proof_status": "not_requested",
+        "signed_at": null
+      }
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 10,
+        "exploitability": 5.999999999999999,
+        "subject": "Cash reviewer"
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P2",
+        "score": 59.99999999999999,
+        "remediation_hours": 336,
+        "next_step": "Remediate within 14 calendar days.",
+        "factor": 1.0,
+        "proof_status": "not_requested",
+        "signed_at": null
+      }
+    },
+    {
+      "tool": "triage",
+      "args": {
+        "gates": {
+          "personal_statutory_liability": false,
+          "irreversible_money_out": false,
+          "ability_to_operate": false,
+          "active_incident": false
+        },
+        "impact": 4,
+        "likelihood": 4,
+        "legal": 0,
+        "detection": 0,
+        "recoverability": 0,
+        "aggregation": 0,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "compensating_credit": 2
+      },
+      "result": {
+        "tier": 2,
+        "score": 16,
+        "triggered_gates": [],
+        "compensating_credit": 0,
+        "proof_status": "future_signoff",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00",
+        "warning": "Verify the reviewer, cadence and audit artifact before relying on this control."
+      },
+      "now": "2026-01-08T00:00:00+00:00"
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 7,
+        "exploitability": 10,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "factor": 0.5
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P1",
+        "score": 70.0,
+        "remediation_hours": 48,
+        "next_step": "Remediate now.",
+        "factor": 1.0,
+        "proof_status": "future_signoff",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00"
+      },
+      "now": "2026-01-08T00:00:00+00:00"
+    },
+    {
+      "tool": "triage",
+      "args": {
+        "gates": {
+          "personal_statutory_liability": false,
+          "irreversible_money_out": false,
+          "ability_to_operate": false,
+          "active_incident": false
+        },
+        "impact": 4,
+        "likelihood": 4,
+        "legal": 0,
+        "detection": 0,
+        "recoverability": 0,
+        "aggregation": 0,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "compensating_credit": 2
+      },
+      "result": {
+        "tier": 3,
+        "score": 14,
+        "triggered_gates": [],
+        "compensating_credit": 2,
+        "proof_status": "active",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00"
+      },
+      "now": "2026-01-09T00:00:00+00:00"
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 7,
+        "exploitability": 10,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "factor": 0.5
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P2",
+        "score": 35.0,
+        "remediation_hours": 336,
+        "next_step": "Remediate within 14 calendar days.",
+        "factor": 0.5,
+        "proof_status": "active",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00"
+      },
+      "now": "2026-01-09T00:00:00+00:00"
+    },
+    {
+      "tool": "triage",
+      "args": {
+        "gates": {
+          "personal_statutory_liability": false,
+          "irreversible_money_out": false,
+          "ability_to_operate": false,
+          "active_incident": false
+        },
+        "impact": 4,
+        "likelihood": 4,
+        "legal": 0,
+        "detection": 0,
+        "recoverability": 0,
+        "aggregation": 0,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "compensating_credit": 2
+      },
+      "result": {
+        "tier": 3,
+        "score": 14,
+        "triggered_gates": [],
+        "compensating_credit": 2,
+        "proof_status": "active",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00"
+      },
+      "now": "2026-01-22T00:00:00+00:00"
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 7,
+        "exploitability": 10,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "factor": 0.5
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P2",
+        "score": 35.0,
+        "remediation_hours": 336,
+        "next_step": "Remediate within 14 calendar days.",
+        "factor": 0.5,
+        "proof_status": "active",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00"
+      },
+      "now": "2026-01-22T00:00:00+00:00"
+    },
+    {
+      "tool": "triage",
+      "args": {
+        "gates": {
+          "personal_statutory_liability": false,
+          "irreversible_money_out": false,
+          "ability_to_operate": false,
+          "active_incident": false
+        },
+        "impact": 4,
+        "likelihood": 4,
+        "legal": 0,
+        "detection": 0,
+        "recoverability": 0,
+        "aggregation": 0,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "compensating_credit": 2
+      },
+      "result": {
+        "tier": 2,
+        "score": 16,
+        "triggered_gates": [],
+        "compensating_credit": 0,
+        "proof_status": "lapsed",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00",
+        "warning": "Verify the reviewer, cadence and audit artifact before relying on this control."
+      },
+      "now": "2026-01-23T00:00:00+00:00"
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 7,
+        "exploitability": 10,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": true,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "factor": 0.5
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P1",
+        "score": 70.0,
+        "remediation_hours": 48,
+        "next_step": "Remediate now.",
+        "factor": 1.0,
+        "proof_status": "lapsed",
+        "signed_at": "2026-01-09T00:00:00.000000+00:00"
+      },
+      "now": "2026-01-23T00:00:00+00:00"
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "asset_class": "Cash",
+        "vertices": ["reconciliation", "custody"],
+        "impact": 7,
+        "exploitability": 10,
+        "subject": "Cash reviewer",
+        "control": "independent-bank-reconciliation",
+        "compensating_has_actor": false,
+        "compensating_has_cadence": true,
+        "compensating_has_artifact": true,
+        "factor": 0.5
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "reconciliation"],
+        "conflict": true,
+        "priority": "P1",
+        "score": 70.0,
+        "remediation_hours": 48,
+        "next_step": "Remediate now.",
+        "factor": 1.0,
+        "proof_status": "missing_triple_proof",
+        "signed_at": null
+      }
+    },
+    {
+      "tool": "sod",
+      "args": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody", "custody"]
+      },
+      "result": {
+        "subject": "Cash reviewer",
+        "asset_class": "Cash",
+        "vertices": ["custody"],
+        "conflict": false,
+        "priority": null,
+        "score": null
+      }
+    }
+  ],
+  "entries": [
+    {
+      "seq": 1,
+      "subject": "Cash reviewer",
+      "control": "independent-bank-reconciliation",
+      "signer": "Ada",
+      "actor": "José",
+      "cadence": "weekly",
+      "artifact": "Review log",
+      "signed_at": "2026-01-02T00:00:00.000000+00:00",
+      "prior_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "hash": "540b28f67a5d25bdaf0fb5b29dfe4caf7cc6723c352c9d3f97923d0f41c05e12"
+    },
+    {
+      "seq": 2,
+      "subject": "Cash reviewer",
+      "control": "independent-bank-reconciliation",
+      "signer": "Ada",
+      "actor": "José",
+      "cadence": "weekly",
+      "artifact": "Review log",
+      "signed_at": "2026-01-09T00:00:00.000000+00:00",
+      "prior_hash": "540b28f67a5d25bdaf0fb5b29dfe4caf7cc6723c352c9d3f97923d0f41c05e12",
+      "hash": "f1c70d4d34eaf066aa103b7813f3019fd62170dcf77ad29bc9bb361719549fc8"
+    }
+  ]
+}

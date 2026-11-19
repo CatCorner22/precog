@@ -12,6 +12,7 @@ import { type NavFn } from "@/lib/precog/navigation";
 import { PageIntro } from "@/components/precog/page-intro";
 import { localDateKey } from "@/lib/precog/dates";
 import { journalEntry, type CoachDecision } from "@/lib/precog/coach/journal-entry";
+import { ControlGuardChecks } from "./controlguard-checks";
 import {
   askButtonLabel,
   BUSINESS_CHANGED_MESSAGE,
@@ -189,6 +190,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
 
   return (
     <div className="space-y-4">
+      <ControlGuardChecks key={profile.businessId ?? profile.industry} />
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="primary">Built from your records</Badge>
         <PageIntro

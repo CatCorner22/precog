@@ -314,6 +314,21 @@ processes it; `docs/ACCOUNT_DATA_MODEL.md` describes what an account owns.
 
 ### Environment
 
+Voyager's **Run a focused check** panel works without a model. It runs the
+ControlGuard calculations on the facts entered, separately from Precog's
+existing business scores. Friday sign-offs last for the current panel session;
+they are not part of the saved control evidence log.
+
+To draft inputs from a short description, set server-only
+`CONTROLGUARD_BASE_URL` to a trusted OpenAI-compatible base URL ending in
+`/v1`, `CONTROLGUARD_MODEL` to the served combined adapter name, and
+`CONTROLGUARD_API_KEY` if the endpoint requires one. The model proposes a
+check and inputs. The user reviews them before Precog runs the check. Without
+the endpoint, the existing rules brief and manual checks remain available.
+
+Regenerate ControlGuard parity data and reference catalogs with
+`PYTHONPATH=/path/to/controlguard python3 scripts/generate-controlguard-fixtures.py`.
+
 `.env.example` names every variable the app reads, grouped by feature, with
 what each one enables and what happens when it is empty: the database and
 sign-in (required in production), the public app URL, the assistants and

@@ -1,0 +1,174 @@
+{
+  "C": {
+    "C1": {
+      "title": "Control Environment, Governance & Segregation of Duties (SoD)",
+      "coso": "Control Environment (Prin. 1–5)",
+      "tier": "Tier 1",
+      "controls": "Separate Authorization, Custody, and Recordkeeping/Reconciliation; Owner holds primary admin & reviews monthly bank statements/check images directly from bank portal ($\\$0$).",
+      "citations": "Single-person full transaction chain present in $> 85\\%$ of prosecuted SMB embezzlements ($n = 340$)."
+    },
+    "C2": {
+      "title": "Entity-Level Legal & Headcount Threshold Inventory",
+      "coso": "Risk Assessment (Prin. 6, 9)",
+      "tier": "Tier 2",
+      "controls": "Annual 1-page headcount & nexus legal inventory with CPA/broker ($\\$0$, $2\\text{h}$); dual-custodian alerts $60\\text{d}/30\\text{d}$ pre-renewal.",
+      "citations": "Crossing $5$ (TN Workers' Comp), $15$ (Title VII/ADA/PWFA), $20$ (ADEA/COBRA), $35$ (TN E-Verify), or $50$ (FMLA/ACA) staff unnoticed."
+    },
+    "C3": {
+      "title": "Revenue, Cash Receipts & Receivables (incl. Mailbox)",
+      "coso": "Control Activities (Prin. 10, 12)",
+      "tier": "Tier 3 (Tier 4 if reviewed)",
+      "controls": "ACH/lockbox/UPIC; restrictive endorsement at mail opening; automated monthly customer statements; independent monthly review of AR aging, credit memos & write-offs; numbered dispatch tickets; supervisor PIN on POS voids/refunds.",
+      "citations": "Skimming ($19\\%$ of SMB cases, $18\\text{-mo}$ median lag), cash larceny ($17\\%$), AR lapping, fake write-offs. UCC § 3-206; AU-C 265."
+    },
+    "C4": {
+      "title": "Purchasing, Accounts Payable & Vendor Master File",
+      "coso": "Control Activities (Prin. 10–12)",
+      "tier": "Tier 1",
+      "controls": "Mandatory out-of-band phone callback to pre-existing number on file before any bank routing change; ban email-only wire/ACH instructions; separate vendor master creation from bill pay & TIN vetting; 3-way match ($0.0\\%$ unit-price variance).",
+      "citations": "BEC vendor impersonation ($63\\%$ of BEC per AFP; $\\$2.77\\text{B}$–$\\$3.0\\text{B}$ FBI IC3 annual losses); shell LLC billing ($31\\%$ of SMB fraud); kickbacks ($45\\%$)."
+    },
+    "C5": {
+      "title": "Cash Disbursements, Checks, Wires & Treasury Banking",
+      "coso": "Control Activities (Prin. 10–12)",
+      "tier": "Tier 1",
+      "controls": "6-account treasury split; **Payee Positive Pay (`default = RETURN`)**; **ACH Debit Blocks/Filters** by 10-char Originator ID; ban rubber signature stamps; dual release across all channels; disable Zelle/RDC for outsiders.",
+      "citations": "Checks $= 36\\%$ of prosecuted insider thefts; $680\\text{k}+$ FinCEN check-washing SARs; UCC § 4-406 ($30\\text{d}/1\\text{yr}$ bar); UCC § 4A-202; Nacha R29 ($2\\text{-day}$ corporate ACH return cliff; no Reg E on business accounts)."
+    },
+    "C6": {
+      "title": "Payroll & HR Administration",
+      "coso": "Control Activities (Prin. 10, 12)",
+      "tier": "Tier 1",
+      "controls": "Pre-transmission owner review of Payroll Change Exception Register; employee callback on direct-deposit bank changes; quarterly owner EFTPS check; deposit 401(k)/SIMPLE deferrals $\\le 7$ business days; written IRC § 125 POP plan.",
+      "citations": "Ghost employees & salary padding ($14\\%$ of SMB cases); non-CPEO payroll processor theft; 29 C.F.R. § 2510.3-102; IRC § 125(d); IRC § 3511."
+    },
+    "C7": {
+      "title": "Tax Collection, Filing & Trust-Fund Remittance",
+      "coso": "Control Activities / Compliance",
+      "tier": "Tier 1",
+      "controls": "Dedicated Trust-Fund Tax Bank Account; direct owner EFTPS enrollment; monthly POS sales tax vs. DOR remittance tie-out; W-9 before first vendor payment; Form 8300 $\\le 15\\text{d}$ on cash $> \\$10,000$.",
+      "citations": "Borrowing payroll/sales tax during cash crunch = *per se* willful personal liability under IRC § 6672 & T.C.A. § 67-1-1443; IRC § 6721 ($\\$25\\text{k}$ Form 8300 penalty)."
+    },
+    "C8": {
+      "title": "Company Cards, Expense Reimbursements & Cash Advances",
+      "coso": "Control Activities (Prin. 10, 12)",
+      "tier": "Tier 2",
+      "controls": "Per-card dollar caps & MCC blocks; zero cards for outside CPAs/bookkeepers; itemized receipt (not summary slip) required under written Accountable Plan; $120.0\\text{-hour}$ cash advance settlement lock.",
+      "citations": "Personal Amazon/travel/gift-card spend on corporate cards; taxable wage reclassification under 26 C.F.R. § 1.62-2; Hawkeye receipt fraud."
+    },
+    "C9": {
+      "title": "Inventory, Fleet, Tools, Equipment & Controlled Assets",
+      "coso": "Control Activities (Prin. 10)",
+      "tier": "Tier 3",
+      "controls": "Perpetual tracking + surprise cycle counts by staff who do not adjust stock records; GPS/fuel-card PIN matching; dual-witness controlled-substance logs in clinical settings.",
+      "citations": "Shrinkage, scrap/copper theft, phantom inventory write-offs, surgical implant/DEA diversion."
+    },
+    "C10": {
+      "title": "Financial Close, Reconciliations & General Ledger",
+      "coso": "Info & Monitoring (Prin. 13, 16)",
+      "tier": "Tier 2",
+      "controls": "Independent monthly bank/card/tax/loan reconciliation $\\le 20$–$30\\text{d}$ post-close using raw bank portal PDFs; Owner-only QuickBooks/Xero closing-date password; review manual JEs & balance-sheet suspense/accrual accounts.",
+      "citations": "Hiding thefts via fake COGS/Supplies JEs (*US v. Means*, *US v. Austin*), prior-period edits, or accrual parking (*Macy's* $\\$151\\text{M}$ trap)."
+    },
+    "C11": {
+      "title": "IT Access, MFA, SaaS Custody & Tested Backups",
+      "coso": "Control Activities — Tech (Prin. 11)",
+      "tier": "Tier 1",
+      "controls": "Mandatory phishing-resistant MFA on email, bank, payroll & ERP; named logins in enterprise vault; $1.0\\text{-hour}$ offboarding revocation checklist; 3-2-1 backups with $\\ge 1$ immutable/offline copy test-restored semi-annually.",
+      "citations": "Ransomware in $88\\%$ of SMB breaches (Verizon DBIR); ITGC weaknesses in $55\\%$ of material weaknesses (KPMG); active ex-employee logins (*US v. Willard*)."
+    },
+    "C12": {
+      "title": "Privacy, Encryption & Data-Protection Compliance",
+      "coso": "Compliance (Prin. 13)",
+      "tier": "Tier 1",
+      "controls": "FIPS 140-2 full-disk encryption (BitLocker/FileVault); FTC Safeguards WISP (16 C.F.R. Part 314); HIPAA SRA & BAAs; tokenized PCI SAQ-A payments; 45-day TN breach workflow; strip Meta Pixels from clinical forms.",
+      "citations": "T.C.A. § 47-18-2107 (45-day breach clock & FIPS 140-2 safe harbor); TIPA (T.C.A. § 47-18-3301); PIPEDA; Quebec Law 25."
+    },
+    "C13": {
+      "title": "Employment, Wage-Hour, I-9/E-Verify & Workplace Safety",
+      "coso": "Compliance (Prin. 13–15)",
+      "tier": "Tier 1",
+      "controls": "I-9 within $3$ business days + E-Verify ($35+$ FTE in TN); timekeeping meal-break attestations; FLSA overtime true-up on non-discretionary bonuses; OSHA logs/programs; 5-guardrail handbook audit.",
+      "citations": "8 C.F.R. § 274a.10; T.C.A. § 50-1-703; T.C.A. § 50-6-405 ($1.5\\times$–$3\\times$ premium penalty); 29 C.F.R. § 578.3 ($\\$2,515$ FLSA willful penalty); OSHA ($\\$16,550$ serious / $\\$165,514$ willful; up to $70\\%$ $\\le 25$-staff reduction); Ontario OHSA § 32.0.1."
+    },
+    "C14": {
+      "title": "Contracts, Licenses, Insurance & Underwriting Warranties",
+      "coso": "Risk Assessment / Compliance",
+      "tier": "Tier 2",
+      "controls": "Dual-custodian renewal cliff tracker; Crime policy with explicit **Social Engineering Endorsement**; pre-binding audit ensuring every control checked \"Yes\" on ACORD/Cyber/Crime apps runs with logs; claim $-15\\%$ to $-25\\%$ Schedule Rating Credits.",
+      "citations": "Policy rescission (*Pioneer Industries v. Hartford*); Computer Fraud BEC circuit split (*Medidata* [2d Cir.] & *American Tooling* [6th Cir.] vs. *Apache* [5th Cir.])."
+    },
+    "C15": {
+      "title": "Records Retention & Litigation Hold",
+      "coso": "Info & Comm. (Prin. 13)",
+      "tier": "Tier 3",
+      "controls": "1-page Retention Schedule (Payroll $4\\text{ yrs}$; Tax $7\\text{ yrs}$; I-9 longer of $3\\text{ yrs}$ post-hire or $1\\text{ yr}$ post-term; ERISA permanent) + immediate Litigation Hold SOP freezing auto-deletion upon dispute/charge + annual PII purge.",
+      "citations": "Fed. R. Civ. P. 37(e) ESI spoliation sanctions; 29 C.F.R. § 516.5; 8 C.F.R. § 274a.2."
+    },
+    "C16": {
+      "title": "Business Continuity & Key-Person Risk",
+      "coso": "Control Environment / Continuity",
+      "tier": "Tier 1",
+      "controls": "Enterprise password vault with Owner break-glass custody; $\\ge 2$ bank signers; 1-page payroll/AP runbooks; **mandatory $5$-consecutive-business-day ($40.0\\text{-hour}$) annual vacation** with cross-coverage for anyone handling money.",
+      "citations": "Key-person lockout on EFTPS/bank/DNS; mandatory vacation/rotation cuts median fraud loss by $49\\%$ (ACFE RTTN; $18\\%$ of fraudsters refuse vacation/sharing)."
+    },
+    "C17": {
+      "title": "Fraud Detection, Whistleblower Tips & Surprise Monitoring",
+      "coso": "Monitoring (Prin. 16–17)",
+      "tier": "Tier 3",
+      "controls": "Web-form / dedicated email tip channel routed directly to Owner/outside CPA (bypassing office/finance mgrs) + anti-retaliation notice; two $30\\text{-min}$ unannounced spot checks per year.",
+      "citations": "Tips detect $43\\%$ of frauds (web forms $46\\%$, email $34\\% >$ phone $23\\%$); only $24\\%$–$27\\%$ of SMBs have tip channels; surprise audits cut median loss by $50\\%$ (ACFE)."
+    },
+    "C18": {
+      "title": "Policy Library Hygiene & MSCD 5e Drafting",
+      "coso": "Control Environment",
+      "tier": "Tier 4",
+      "controls": "Active-voice deontic modals (`must`, `may`, `must not`); ban passive voice, `shall` in employee policies, `should`, and $66$ vague adjectives; separate Policy vs. 11-section SOP vs. Record; retire unfollowed paper policies.",
+      "citations": "Ambiguous/passive policies fail in court or destroy at-will status (*Woolley*) while unfollowed policies prove reckless disregard (*Pioneer Industries*)."
+    },
+    "C19": {
+      "title": "Outside CPA, Bookkeeper, Tax Preparer & Payroll Custody",
+      "coso": "Control Environment / CUECs",
+      "tier": "Tier 1",
+      "controls": "\"Outsider prepares, Owner approves & releases\"; zero bank admin/signing/POA custody for outsiders; verify CPEO certification (IRC § 3511); lock IRS Form 8822-B address & refund routing to taxpayer's own bank account.",
+      "citations": "$63$ prosecuted CPA/preparer cases ($\\$900\\text{k}$ median loss: *Jerkins* $\\$4.6\\text{M}$, *Ginsberg* $\\$900\\text{k}$); AICPA ET § 1.295 custody independence rule; 31 C.F.R. § 10.31 / IRS OPR 2026-10."
+    }
+  },
+  "DEF": {
+    "DEF-01": "6-Account Treasury Partition & UPIC Architecture:\n*(1) Receipts Account:* Customer inflows only $\\rightarrow$ daily auto-sweep to Operating; full ACH Debit Block; zero paper checks; publish a **UPIC** (Universal Payment Identification Code receive-only number) on invoices.\n*(2) Operating Account:* Outsider initiates only; Owner releases; **Payee Positive Pay (`cutoff default = RETURN`)** + **ACH Debit Filter** allowlisting specific 10-character Originator Company IDs with dollar caps.\n*(3) Payroll Account:* Zero-balance between runs; funded exact net-pay per run; ACH filter allowing only Payroll Provider Company ID.\n*(4) Tax / Trust-Fund Account:* Owner-only; holds withheld 941 payroll tax & state sales tax; ACH filter allowing **only** US Treasury (`EFTPS`) and State DOR debits.\n*(5) Reserve Account:* Cash buffer; Owner-only transfers to Operating; zero external wires or ACH debits.\n*(6) Company Cards:* Per-card limits + MCC blocks; **never** issue a card to an outside CPA or bookkeeper.",
+    "DEF-02": "Bank-Portal Entitlement Matrix (\"Outsider Prepares, Owner Releases\"): Owner-only Dual Company Administration; CPA/bookkeeper restricted to View + Initiate to existing payees under caps; Owner-only Approve/Release on separate device with out-of-band MFA; Positive Pay cutoff strictly `RETURN`; Remote Deposit Capture (RDC) and Zelle disabled for outsiders.",
+    "DEF-03": "IRS & State Tax Authorization & Refund Routing Lock: Form `8821` (view-only) for bookkeepers; scoped Form `2848` POA only for licensed CPA/EA/attorney on specific matters; Form `8655` Reporting Agent remitting via EFTPS under client's EIN; Form `8822-B` locked to Owner's name & physical address; hard 31 C.F.R. § 10.31 & IRS OPR 2026-10 lock mandating tax refunds route solely to an account titled in the taxpayer's name.",
+    "DEF-04": "Vendor Master Onboarding & Out-of-Band Callback Lock: Mandatory `C4` out-of-band phone callback to pre-existing number on file; $48.0\\text{-hour}$ cooling-off / micro-deposit hold on altered bank routing; Great American Vetting Split (staff performing W-9/TIN/background checks cannot hold ERP permissions to create/edit vendor master records).",
+    "DEF-05": "Zero Unit-Price PO Tolerance & Per-Channel Dual-Release Lock: ERP 3-way match unit-price variance tolerance set to $0.0\\%$ (small auto-tolerance restricted solely to documented freight); identical dual-signer dollar thresholds enforced across Checks, ACH, Wire, Bill-Pay, and Cards to block channel-switching bypass.",
+    "DEF-06": "ERP Primary Admin, Closing-Date Password & Software Change Gate: Owner owns QuickBooks/Xero subscription as Primary Admin; Owner-exclusive Closing-Date Password; non-deletable Audit Log; any accounting/payroll software migration (*Warr*) or custom report-filter edit (*Yarborough-Walker*) treated as a Tier-1 Control Event requiring Owner sign-off.",
+    "DEF-07": "Nonprofit, Church & Volunteer Board Governance Shield: Complete ban on rubber signature stamps (*DeCoteau*, *Bringham*); 2-person count + dual-signed deposit slip on cash/offertory (*Boyer*); monthly bank statements with check images routed directly to a non-signing, non-bookkeeping Board Trustee; immediate bank signatory re-verification upon any pastor, executive director, or officer vacancy (*Haigler*)."
+  },
+  "O": {
+    "O1": "Quarterly Form 941-to-EFTPS direct transcript tie-out",
+    "O2": "Payroll Change Exception & employee-to-vendor bank routing collision check",
+    "O3": "Monthly cleared check-image payee inspection (catching altered payees, rubber stamps, and checks to cash/self)",
+    "O4": "Bank-portal PDF ending balance vs. QuickBooks register tie-out",
+    "O5": "Vendor master audit log vs. `C4` callback log",
+    "O6": "IRS Account Transcript & Form `8822-B` address verification (catching shadow returns)",
+    "O7": "AR credit-memo, void & write-off exception review",
+    "O8": "Unannounced cash/inventory/DEA vial count",
+    "O9": "ERP audit-log scan for deleted transactions, prior-period edits, and suppressed report filters",
+    "O10": "Quarterly SaaS/bank active user & ex-employee token review",
+    "O11": "Crime/Cyber insurance warranty compliance check",
+    "O12": "Semi-annual timed backup restore drill"
+  },
+  "TW": {
+    "TW-01": "CUSUM Positive-Skew Vendor PO-Tolerance Skim Detector ($\\text{PositiveSkew} \\ge 0.70 \\land \\text{CeilingHug} \\ge 0.50$).",
+    "TW-02": "Split-Transaction Threshold Bypass Detector (for example, multiple $\\$49$ write-offs under a $\\$50$ cap, or sequential invoices split below a $\\$5,000$ dual-release limit within $72.0\\text{ hours}$).",
+    "TW-03": "Dormant Canary Vendor Trap (seeded inactive vendor in ERP; any edit, reactivation, or payment initiation fires an instant P1 SMS/email alert to Owner).",
+    "TW-04": "Seeded $\\$108$ Reviewer Error Trap (deliberate non-destructive reconciliation variance seeded to verify whether an outsourced CPA or manager actually inspects support vs. rubber-stamping).",
+    "TW-05": "Employee-Initials & Levenshtein Lookalike Vendor Trap (flags new vendors matching employee initials, home addresses, payroll routing/account numbers, or Levenshtein edit distance $\\le 2$ from major legitimate suppliers, for example, *Power* $\\$1.4\\text{M}$ / *Ginsberg* \"Internal Recovery Systems\").",
+    "TW-06": "Bank-Account Flip Velocity Trap (vendor or employee direct-deposit bank coordinates changed within $14$ days prior to a payout $> \\$2,500$ and flipped back).",
+    "TW-07": "Weekend / After-Hours Manual Journal Entry & Deleted-Check Sequence Gap Detector (*Cormier*).",
+    "TW-08": "Balance-Sheet Accrual, Suspense & Inventory Expense-Parking Velocity Backstop (catches the *Macy's Form 8-K $\\$151\\text{M}$* / *Chappell* scheme where cash outflows or personal card charges are parked in balance-sheet accrual/inventory accounts so monthly P&L margins appear normal).",
+    "TW-09": "Payroll Report-Filter & Software Migration Diff Trap (*Yarborough-Walker* / *Warr*).",
+    "TW-10": "Nacha R29 $24\\text{-Hour}$ Unrecognized ACH Originator Company ID Alert.",
+    "TW-11": "Tax Refund Routing & IRS Transcript Delta Trap (31 C.F.R. § 10.31 / IRS 3-refund-per-account cap check).",
+    "TW-12": "Crime/Cyber Insurance Warranty Drift Monitor (alerts if Positive Pay, MFA, or `C4` callback logging drops below 100% policy compliance)."
+  }
+}

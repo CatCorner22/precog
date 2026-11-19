@@ -35,6 +35,24 @@ export const RISK_SCALE = { critical: 80, actNow: 60, mitigate: 40 } as const;
  */
 export const PRIORITY_SCALE = { top: 88, high: 70, medium: 45, low: 35 } as const;
 
+/** Focused ControlGuard checks use their own thresholds, not Precog's business indices. */
+export function controlGuardTriageTier(score: number): 1 | 2 | 3 | 4 {
+  return score >= 24 ? 1 : score >= 16 ? 2 : score >= 9 ? 3 : 4;
+}
+
+export function controlGuardConflictPriority(
+  score: bigint,
+  denominator: bigint,
+): "P1" | "P2" | "P3" | "P4" {
+  return score >= 60n * denominator
+    ? "P1"
+    : score >= 35n * denominator
+      ? "P2"
+      : score >= 15n * denominator
+        ? "P3"
+        : "P4";
+}
+
 /**
  * Display bands for a process's composite `heat` (process-graph's
  * enrichProcess): Precog's own 0–100 blend of a process's worst risk

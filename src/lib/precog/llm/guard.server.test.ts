@@ -78,6 +78,23 @@ afterEach(() => {
 });
 
 describe("resolveLlmAccess", () => {
+  it("keeps deterministic checks outside the model allowance", async () => {
+    const { LLM_LIMITS } = await import("./rate-limit");
+    const { resolveLlmAccess } = await guard();
+    for (let i = 0; i <= LLM_LIMITS.perIp.limit; i++) {
+      await resolveLlmAccess(undefined, { deterministic: true });
+    }
+    for (let i = 0; i < LLM_LIMITS.anonymousHeavyPerIp.limit; i++) {
+      await resolveLlmAccess(undefined, { heavy: true });
+    }
+    await expect(resolveLlmAccess(undefined, { heavy: true })).rejects.toMatchObject({
+      status: 429,
+    });
+    await expect(resolveLlmAccess(undefined, { deterministic: true })).resolves.toMatchObject({
+      userId: null,
+    });
+  });
+
   it("checks the request is same-site before anything else", async () => {
     const { resolveLlmAccess } = await guard();
     seams.sameSite.mockImplementation(() => {
