@@ -123,6 +123,20 @@ describe("additional forensic checks", () => {
       "watch",
     );
   });
+  it.each(["\n", "\r\n", "\u2028", "\u2029"])(
+    "accepts multiline number prefixes containing %j",
+    (lineBreak) => {
+      const rows = parseTransactionsCsv(
+        `date,amount,payee,invoice number\n2025-01-01,10,Acme,"INV-${lineBreak}001"\n2025-01-02,10,Acme,"INV-${lineBreak}003"`,
+      ).transactions;
+      expect(rows).toHaveLength(2);
+      expect(rows[0].number).toBe(`INV-${lineBreak}001`);
+      expect(() => oddTransactions(rows, options)).not.toThrow();
+      expect(finding(rows, "number_sequence")?.summary).toBe(
+        "1 missing numbers and 0 repeated numbers within numbered series.",
+      );
+    },
+  );
   it("pairs equal opposite amounts one-to-one within 3 calendar days, including leap day", () => {
     const rows = [
       txn("in", "2024-02-28", 10),

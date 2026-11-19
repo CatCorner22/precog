@@ -126,7 +126,7 @@ export function oddTransactions(
   } else {
     const series = new Map<string, Map<bigint, Transaction[]>>();
     for (const t of numbered) {
-      const [, prefix, digits] = /^(.*?)(\d+)$/.exec(t.number!)!;
+      const [, prefix, digits] = /^([\s\S]*?)(\d+)$/.exec(t.number!)!;
       const id = JSON.stringify([
         t.numberType ?? "unspecified",
         key(prefix),
