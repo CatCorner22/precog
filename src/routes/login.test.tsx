@@ -50,6 +50,15 @@ describe("the sign-in page", () => {
     expect(html).toContain('aria-label="Legal"');
   });
 
+  it("posts credentials and disables submit in server-rendered HTML", () => {
+    const html = renderToStaticMarkup(<Page />);
+    const form = html.match(/<form\b[^>]*>/)?.[0] ?? "";
+    const submitButton = html.match(/<button\b[^>]*>Sign in with email<\/button>/)?.[0] ?? "";
+
+    expect(form).toContain('method="post"');
+    expect(submitButton).toContain("disabled");
+  });
+
   it("shows the mapped confirmation error from the search string", () => {
     search.error = "invalid_token";
     const html = renderToStaticMarkup(<Page />);

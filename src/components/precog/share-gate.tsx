@@ -32,6 +32,7 @@ export function ShareGate({
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white p-8">
         <form
+          method="post"
           className="w-full max-w-sm rounded-lg border border-neutral-200 p-5"
           onSubmit={(event) => {
             event.preventDefault();

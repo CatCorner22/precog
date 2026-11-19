@@ -80,6 +80,7 @@ describe("the shared report page", () => {
     expect(html).toContain("Enter the passcode provided by the owner.");
     expect(html).toContain('id="share-passcode"');
     expect(html).toContain('type="password"');
+    expect(html).toMatch(/<form\b[^>]*method="post"/);
     expect(html).toContain(">Open</button>");
     expect(html).not.toContain("Shared report unavailable");
   });
