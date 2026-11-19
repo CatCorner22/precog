@@ -74,6 +74,18 @@ describe("compliance knowledge cards", () => {
     );
   });
 
+  it("returns plain-text full content for naloxone searches", () => {
+    const result = searchComplianceCards("naloxone", cards).find(
+      (card) => card.id === "tn-53-11-308-naloxone-offer",
+    );
+    expect(result).toBeDefined();
+    expect(result?.body).toContain("Office checklist");
+    expect(result?.body).toContain("Open.");
+    expect(result?.body).not.toContain("](http");
+    expect(result?.body).toContain("\n");
+    expect(result?.body).not.toMatch(/<\/?[A-Za-z][^>]*>/);
+  });
+
   it("ranks an OSHA card in the top three for sharps-container searches", () => {
     expect(
       searchComplianceCards("sharps container", cards, { limit: 3 }).some(

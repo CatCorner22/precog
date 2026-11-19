@@ -14,6 +14,7 @@ export interface ComplianceCardResult extends Pick<
   ComplianceCard,
   "id" | "title" | "section" | "status" | "citation" | "last_verified" | "source_url"
 > {
+  body: string;
   excerpt: string;
   stale: boolean;
 }
@@ -117,6 +118,18 @@ function excerpt(body: string) {
   return plain.length > 320 ? `${plain.slice(0, 317).trimEnd()}…` : plain;
 }
 
+function plainText(markdown: string) {
+  return markdown
+    .replace(/^<!--[\s\S]*?-->\s*$/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`>#]/g, "")
+    .replace(/<\/?[A-Za-z][^>]*>/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function isStale(card: ComplianceCard, now: Date) {
   if (card.status !== "verified" || !card.review_days || !card.last_verified) return false;
   const verifiedAt = Date.parse(card.last_verified);
@@ -175,6 +188,7 @@ export function searchComplianceCards(
         citation: document.card.citation,
         last_verified: document.card.last_verified,
         source_url: document.card.source_url,
+        body: plainText(document.card.body),
         excerpt: excerpt(document.card.body),
         stale: isStale(document.card, now),
       },

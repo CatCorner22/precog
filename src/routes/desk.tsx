@@ -221,6 +221,10 @@ function ComplianceDesk() {
               </span>
             </div>
             <p className="mt-3 text-sm leading-6 text-muted">{card.excerpt}</p>
+            <details className="mt-4 rounded-xl border border-border bg-elevated px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium">Full card</summary>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{card.body}</p>
+            </details>
             {card.citation && (
               <p className="mt-3 text-xs leading-5 text-subtle">
                 <span className="font-semibold">Citation: </span>
