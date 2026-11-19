@@ -26,10 +26,28 @@ sources:
 - All antianxiety premedication and all sedation techniques except nitrous oxide and oxygen need a comprehensive conscious sedation permit. (5)(c)
 - Sedation or anesthesia agents must be given under the dentist's direct supervision. (2)(c)3.(ii)
 
+## Office rules for conscious sedation — 0460-02-.07(6)(b)
+- Treatment room fits the patient and an operating team of at least 2 who can move freely; chair or table allows airway management, quick repositioning and CPR. (6)(b)1.(i)-(ii)
+- Adequate lighting; oral and pharyngeal suction; oxygen delivery with full-face masks able to give positive pressure. (6)(b)1.(iii)-(v)
+- Recovery area with oxygen, lighting, suction and outlets (may be the treatment room); staff observe the patient at all times during recovery. (6)(b)1.(vi)
+- Alternate lighting and alternate suction for a power failure; right-sized equipment where children are treated. (6)(b)1.(vii)-(viii)
+- Inspect anesthesia and sedation equipment each day it is used and keep a log of the results. (6)(b)1.(ix)
+- At least 1 person besides the operating dentist present; team trained to the dentist's protocol and currently certified in BLS for Healthcare Providers or CPR/AED for Professional Rescuers (in person, manikin skills test). (6)(b)2.(i)-(ii)
+- Clinical staff in the operatory or recovery hold a current Tennessee license or registration; unlicensed staff get no licensed duties and work under direct supervision within their training. (6)(b)2.(iii)-(v)
+- Evaluate every patient before sedation: for ASA I-II a medical-history and medication review may suffice; for ASA III-IV consulting the physician or specialist is recommended. (6)(b)3.
+- The record holds: medical history with current medications and allergies; informed consent for the anesthesia type; baseline blood pressure and pulse (or why not); a time-based anesthesia record with drugs and doses; complications; status at discharge. (6)(b)4.
+- Monitoring: continuous direct observation; interval blood pressure and pulse; continuous pulse oximetry; trained staff monitor recovery until the patient is stable for discharge; document any monitoring the patient prevents. (6)(b)5.(i)-(v)
+
+## Office rules for deep sedation and general anesthesia — 0460-02-.07(7)
+- Same room, chair, lighting, suction and oxygen rules as conscious sedation, but the room fits an operating team of at least 3. (7)(b)1.(i)-(v)
+- A dentist who uses a CRNA for deep sedation or general anesthesia still needs the deep sedation/general anesthesia permit. (7)(a)3.
+- A deep sedation/general anesthesia permit holder may also give conscious sedation. (7)(a)4.
+
+
 ## Cautions
 - "The degree of sedation or consciousness level of a patient is the determinant for the application of these rules, not the route of administration." (3)(a)
 - Hygienists and assistants never give conscious sedation or general anesthesia (0460-03-.09(7)(h); 0460-04-.08(4)(h)).
 - Deep sedation/GA offices: treatment room for an operating team of at least 3, a chair or table that allows airway management and CPR, adequate lighting, oral and pharyngeal suction, and an oxygen delivery system with full-face masks. (7)(b)1.
 - Certified monitors may stop nitrous oxide and must tell the dentist of any change that might mean an adverse effect. (4)(c)
 
-**Open.** Conscious-sedation office rules ((6)(b) onward), the rest of the (7)(b) equipment, drug and staffing list, facility permits and inspections, and mobile anesthesia providers are not transcribed yet — check the source.
+**Open.** Conscious-sedation rules after (6)(b)5.(v), deep-sedation rules after (7)(b)1.(v), the rest of the (7)(b) equipment, drug and staffing list, facility permits and inspections, and mobile anesthesia providers are not transcribed yet — check the source.
