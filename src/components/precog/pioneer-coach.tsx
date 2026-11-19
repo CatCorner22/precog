@@ -11,6 +11,7 @@ import { Compass, Loader2, Sparkles } from "lucide-react";
 import { type NavFn } from "@/lib/precog/navigation";
 import { PageIntro } from "@/components/precog/page-intro";
 import { localDateKey } from "@/lib/precog/dates";
+import { normalizeMoneyChecks } from "@/lib/precog/money-checks/profile-state";
 import { journalEntry, type CoachDecision } from "@/lib/precog/coach/journal-entry";
 import { ControlGuardChecks } from "./controlguard-checks";
 import {
@@ -84,6 +85,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
         // screen.
         decisions: profile.decisions.filter((d) => PIONEER_JOURNAL_TABS.has(d.linkedTab ?? "")),
         plannedAbsences: profile.plannedAbsences ?? [],
+        moneyChecks: normalizeMoneyChecks(profile.moneyChecks),
         // Which register items have a written procedure; never the steps.
         procedureLinks: writtenProcedureLinks(profile.procedures, profile.industry),
       },

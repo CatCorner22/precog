@@ -29,9 +29,11 @@ import type {
 import { PIONEER_LIST_CAPS } from "../public-inputs";
 import { linkOnlyProcedure, type ProcedureLinkInput } from "../procedures/coverage-link";
 import { PROCEDURE_LIMITS } from "../procedures/normalize";
+import { normalizeMoneyChecks } from "../money-checks/profile-state";
 
 /** The slice of a PracticeProfile that changes what Pioneer computes. */
 export interface PioneerProfileInput {
+  moneyChecks?: unknown;
   industry?: IndustryId;
   practiceName?: string;
   staff?: Partial<StaffComposition>;
@@ -161,6 +163,7 @@ export function pioneerProfileFrom(
     PIONEER_LIST_CAPS.absences,
   );
   const seenLinks = new Set<string>();
+  const moneyChecks = normalizeMoneyChecks(input.moneyChecks);
   const procedures = (Array.isArray(input.procedureLinks) ? input.procedureLinks : [])
     .slice(0, PIONEER_LIST_CAPS.procedures)
     .map(sanitizeProcedureLink)
@@ -184,6 +187,7 @@ export function pioneerProfileFrom(
     ...(setupAnswers ? { setupAnswers } : {}),
     decisions,
     plannedAbsences,
+    ...(moneyChecks ? { moneyChecks } : {}),
     ...(procedures.length ? { procedures } : {}),
   };
 }
