@@ -10,6 +10,8 @@ describe("deterministic transcript wording check", () => {
     ["I can’t pay.", "I can pay.", "negation"],
     ["I paid $100.", "I paid $101.", "amount"],
     ["I paid 100€.", "I paid 100£.", "amount"],
+    ["100€ - cash", "100£ - cash", "amount"],
+    ["100€ + fees", "100£ + fees", "amount"],
     ["I paid 100€.", "I paid 100.", "amount"],
     ["There were 12 files.", "There were 13 files.", "amount"],
     ["I paid -$100.", "I paid $100.", "amount"],
