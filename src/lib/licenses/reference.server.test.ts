@@ -27,5 +27,7 @@ describe("license reference loader", () => {
     if (table?.type !== "table") throw new Error("The treatments table is missing.");
     expect(table.rows.length).toBeGreaterThanOrEqual(20);
     expect(table.rows.some((row) => row[0] === "Local anesthesia")).toBe(true);
+    const prescriptionsRow = table.rows.find((row) => row[0] === "Prescriptions");
+    expect(prescriptionsRow?.[2]).toContain("fluoride agents");
   });
 });

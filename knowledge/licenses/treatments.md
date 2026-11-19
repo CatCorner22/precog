@@ -6,7 +6,7 @@ review_days: 90
 ---
 # Who may do it — common treatments by license
 
-D = dentist; RDH = licensed dental hygienist; RDA = registered dental assistant; PDA = practical dental assistant. "Direct" = dentist continuously present in the office (T.C.A. § 63-5-115(b)(1)).
+D = dentist; RDH = licensed dental hygienist; RDA = registered dental assistant; PDA = practical dental assistant. "Direct" = dentist continuously present in the office (T.C.A. § 63-5-115(b)(1)). Every task an assistant (RDA or PDA) performs, including each "Yes (delegated)" below, needs direct supervision (0460-04-.01; 0460-04-.08(1)).
 
 | Treatment | D | RDH | RDA | PDA | Cautions | Cite |
 |---|---|---|---|---|---|---|
@@ -20,7 +20,7 @@ D = dentist; RDH = licensed dental hygienist; RDA = registered dental assistant;
 | Local anesthesia | Yes | With 0460-03-.12 certification; dentist physically present | No | No | | 0460-03-.09(5); 0460-04-.08(4)(h) |
 | Nitrous oxide — administer | Yes | With 0460-03-.06 certification, direct | No | No | Dentist on premises the whole time; at least 30% oxygen; scavenger | 0460-02-.07(4); 0460-03-.09(4) |
 | Nitrous oxide — monitor | Yes | With certification | With 0460-04-.05 certification | No | Constant monitoring; may stop the gas; report changes to the dentist | 0460-02-.07(4)(b)-(c) |
-| Conscious sedation, deep sedation, general anesthesia | With Board permit | No | No | No | Children 13 and under need a comprehensive permit | 0460-02-.07 |
+| Conscious sedation, deep sedation, general anesthesia | With Board permit | No | No | No | Children 13 and under: any conscious sedation, and any anxiolysis or sedation other than nitrous oxide and oxygen, needs a comprehensive conscious sedation permit; deep sedation or general anesthesia needs the deep sedation/general anesthesia permit plus pediatric training | 0460-02-.07(2)(c)3., (5)(c), (7)(a)1.(ii) |
 | Lasers | Yes | Examination and periodontal treatment only | No | No | No cutting by hygienists | 0460-03-.09(1)(ww),(7)(b); 0460-04-.08(4)(m) |
 | Restorative or prosthetic expanded functions | Yes | With 0460-03-.10 certification, direct | With 0460-04-.10 certification, direct | No | | 0460-03-.09(6); 0460-04-.08(2)(d)-(e) |
 | Amalgam placement for the dentist to condense; bases and liners | Yes | Yes | Yes (delegated) | Yes (delegated) | Dentist condenses | 0460-03-.09(1)(ff)-(gg); 0460-04-.08(3)(aa),(dd) |
@@ -30,5 +30,5 @@ D = dentist; RDH = licensed dental hygienist; RDA = registered dental assistant;
 | Orthodontic wires, bands, brackets | Yes | Yes (delegated) | Yes (delegated) | Yes (delegated) | Arch wires placed after dentist approval | 0460-03-.09(1)(u)-(cc); 0460-04-.08(3)(p)-(x) |
 | Pulp testing; pulpotomy paste; drying canals | Yes | Yes | Yes (delegated) | Yes (delegated) | Pulp capping and pulpotomy are dentist only | 0460-03-.09(1)(oo)-(qq),(7)(e); 0460-04-.08(3)(hh)-(jj) |
 | Sutures — place | Yes | No | No | No | Removal is delegable | 0460-03-.09(7)(g); 0460-04-.08(4)(g) |
-| Prescriptions | Yes | Call in as instructed only | Call in as instructed only | Call in as instructed only | | 0460-03-.09(1)(rr),(7)(d); 0460-04-.08(3)(ll),(4)(d) |
+| Prescriptions | Yes | Limited: fluoride agents, topical oral anesthetics and nonsystemic oral antimicrobials that are not controlled substances, under general supervision; otherwise call in as instructed | Call in as instructed only | Call in as instructed only | A dentist reviews each hygienist prescription within 30 days; Board rules set training and strengths; 2026 Pub. Ch. 1107 widens the list from January 1, 2027 | T.C.A. § 63-5-108(h); 0460-03-.09(1)(rr); 0460-04-.08(3)(ll),(4)(d) |
 | Intraoral high-speed handpiece | Yes | No | No | No | | 0460-03-.09(7)(k); 0460-04-.08(4)(l) |

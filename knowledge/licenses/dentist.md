@@ -25,7 +25,7 @@ Diagnosing, prescribing for or treating oral and maxillofacial conditions (b)(1)
 | Surgical or cutting procedures on hard or soft tissue (hygienists may do curettage and root planing) | 0460-03-.09(7)(b); 0460-04-.08(4)(b) |
 | Laser procedures (hygienists: examination and periodontal use only) | 0460-04-.08(4)(m); 0460-03-.09(1)(ww) |
 | Fitting, adjusting and placing prosthodontic appliances; approving the final occlusion | 0460-03-.09(7)(c),(f) |
-| Prescriptions and work authorizations (staff may only call in a prescription as instructed) | 0460-03-.09(7)(d); 0460-04-.08(3)(ll) |
+| Prescriptions and work authorizations (exception: a hygienist's limited prescriptive authority under T.C.A. § 63-5-108(h); assistants may only call in a prescription as instructed) | 0460-03-.09(7)(d); 0460-04-.08(3)(ll); T.C.A. § 63-5-108(h) |
 | Direct pulp capping, pulpotomy and other endodontic procedures | 0460-03-.09(7)(e) |
 | Placing sutures | 0460-03-.09(7)(g) |
 | Conscious sedation and general anesthesia (permit required) | 0460-02-.07; see Sedation permits |
