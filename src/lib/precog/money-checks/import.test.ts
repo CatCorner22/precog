@@ -96,6 +96,7 @@ describe("money file imports", () => {
       "approved_by",
       "reverses",
       "closed_period",
+      "entry_date",
     ]);
   });
   it("normalizes every books type", () => {
@@ -116,6 +117,44 @@ describe("money file imports", () => {
     expect(result.rows.map((row) => row.type).sort()).toEqual(
       types.map((type) => type.replace(/[ -]/g, "_")).sort(),
     );
+  });
+  it("uses effective date only when the entry-date column is absent", () => {
+    const absent = importBooksCsv("Effective date,Amount,Type\n11/1/26,1,deposit");
+    expect(absent.issues).toEqual([]);
+    expect(absent.rows[0].entryDate).toBe("2026-11-01");
+    expect(absent.optionalColumns).not.toContain("entry_date");
+    const present = importBooksCsv(
+      "Entry date,Effective date,Amount,Type\n11/3/26,11/1/26,1,deposit",
+    );
+    expect(present.issues).toEqual([]);
+    expect(present.rows[0].entryDate).toBe("2026-11-03");
+    expect(present.optionalColumns).toContain("entry_date");
+    expect(
+      importBooksCsv("Entry date,Effective date,Amount,Type\n,11/1/26,1,deposit").issues,
+    ).not.toHaveLength(0);
+  });
+  it.each([
+    ["payment_received", 100],
+    ["deposit", 100],
+    ["payment_out", -100],
+    ["refund", -100],
+    ["write_off", -100],
+    ["payroll", -100],
+    ["adjustment", null],
+    ["reversal", null],
+  ] as const)("derives books signs for %s", (type, fixed) => {
+    for (const [columns, cells, fileSign] of [
+      ["Amount", "1", 100],
+      ["Amount", "-1", -100],
+      ["Debit,Credit", "1,", -100],
+      ["Debit,Credit", ",1", 100],
+      ["Debit,Credit", "-1,", -100],
+      ["Debit,Credit", ",-1", -100],
+    ] as const) {
+      const result = importBooksCsv(`Effective date,${columns},Type\n11/1/26,${cells},${type}`);
+      expect(result.issues).toEqual([]);
+      expect(result.rows[0].amountCents).toBe(fixed ?? fileSign);
+    }
   });
   it("reports empty, missing, ambiguous and invalid inputs", () => {
     expect(importBankCsv("").issues).not.toHaveLength(0);

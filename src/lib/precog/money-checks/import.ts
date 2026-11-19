@@ -16,6 +16,7 @@ const OPTIONAL = [
   "approved_by",
   "reverses",
   "closed_period",
+  "entry_date",
 ] as const;
 type OptionalColumn = (typeof OPTIONAL)[number];
 export const BOOKS_TYPES = [
@@ -37,7 +38,9 @@ export interface BankRow {
   reference?: string;
 }
 export interface BooksRow
-  extends Omit<BankRow, "description">, Partial<Record<OptionalColumn, string>> {
+  extends
+    Omit<BankRow, "description">,
+    Partial<Record<Exclude<OptionalColumn, "entry_date">, string>> {
   entryDate: string;
   type: BooksType;
 }
@@ -48,7 +51,7 @@ export interface MoneyImport<T> {
 }
 const ALIASES: Record<string, string[]> = {
   date: ["date", "posted date", "posting date", "transaction date", "effective date"],
-  entry: ["entry date", "entered date", "entered on"],
+  entry_date: ["entry date", "entered date", "entered on"],
   amount: ["amount", "signed amount", "transaction amount"],
   debit: ["debit", "debits", "withdrawal"],
   credit: ["credit", "credits"],
@@ -90,8 +93,10 @@ function read(text: string, books: boolean): MoneyImport<BankRow | BooksRow> {
     if (columns.has(key)) issue(0, `Repeated column: ${key}`);
     columns.set(key, index);
   });
-  result.optionalColumns = OPTIONAL.filter((key) => columns.has(key));
-  const required = books ? ["entry", "date", "type"] : ["date", "description"];
+  result.optionalColumns = OPTIONAL.filter(
+    (key) => columns.has(key) && (books || key !== "entry_date"),
+  );
+  const required = books ? ["date", "type"] : ["date", "description"];
   for (const key of required) if (!columns.has(key)) issue(0, `Missing column: ${key}`);
   const split = columns.has("debit") && columns.has("credit");
   if (!columns.has("amount") && !split) issue(0, "Provide amount or both debit and credit columns");
@@ -108,7 +113,7 @@ function read(text: string, books: boolean): MoneyImport<BankRow | BooksRow> {
     }
     const get = (key: string) => (cells[columns.get(key) ?? -1] ?? "").trim();
     const date = parseMoneyDate(get("date"));
-    const entry = books ? parseMoneyDate(get("entry")) : date;
+    const entry = books && columns.has("entry_date") ? parseMoneyDate(get("entry_date")) : date;
     const debit = get("debit"),
       credit = get("credit");
     const amount = parseCents(split ? debit || credit : get("amount"));
@@ -127,7 +132,7 @@ function read(text: string, books: boolean): MoneyImport<BankRow | BooksRow> {
       return;
     }
     if (
-      (split && ((!debit && !credit) || (debit && credit) || amount.value < 0)) ||
+      (split && ((!debit && !credit) || (debit && credit) || (!books && amount.value < 0))) ||
       (columns.has("direction") && !["in", "out", "credit", "debit"].includes(direction)) ||
       (books && !BOOKS_TYPES.includes(type as BooksType))
     ) {
@@ -143,12 +148,25 @@ function read(text: string, books: boolean): MoneyImport<BankRow | BooksRow> {
           ? -1
           : 1
         : null;
-    if (sign !== null && amount.value < 0 && sign > 0) {
+    if (!books && sign !== null && amount.value < 0 && sign > 0) {
       issue(row, "Signed amount contradicts direction");
       return;
     }
-    const amountCents = (sign === null ? amount.value : Math.abs(amount.value) * sign) as Cents;
-    const optional = Object.fromEntries(result.optionalColumns.map((key) => [key, get(key)]));
+    let amountCents = (sign === null ? amount.value : Math.abs(amount.value) * sign) as Cents;
+    if (books) {
+      // Books types set cash direction; adjustments/reversals retain file sign, with debits negative.
+      const fileValue = split && debit ? -Math.abs(amount.value) : amount.value;
+      amountCents = (
+        ["payment_received", "deposit"].includes(type)
+          ? Math.abs(amount.value)
+          : ["payment_out", "refund", "write_off", "payroll"].includes(type)
+            ? -Math.abs(amount.value)
+            : fileValue
+      ) as Cents;
+    }
+    const optional = Object.fromEntries(
+      result.optionalColumns.filter((key) => key !== "entry_date").map((key) => [key, get(key)]),
+    );
     const base = { sourceRow: row, date: date.value, amountCents, ...optional };
     result.rows.push(
       books
