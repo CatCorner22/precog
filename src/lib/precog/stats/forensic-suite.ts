@@ -7,6 +7,11 @@ import {
 } from "./benford";
 import { utcDateKey } from "../dates";
 import { formatPct } from "../../utils";
+import {
+  oddTransactions,
+  type OddTransactionOptions,
+  type OddTransactionResult,
+} from "./odd-transactions";
 
 export interface Transaction {
   id: string;
@@ -17,11 +22,16 @@ export interface Transaction {
   kind?: "charge" | "payment" | "deposit" | "adjustment" | "refund";
   memo?: string;
   personId?: string;
+  payee?: string;
+  number?: string;
+  time?: string;
+  account?: string;
+  channel?: string;
 }
 
 export type Severity = "info" | "watch" | "review";
 
-interface ForensicFinding {
+export interface ForensicFinding {
   id: string;
   title: string;
   severity: Severity;
@@ -36,6 +46,7 @@ export interface ForensicReport {
   benfordSecond?: DigitTest;
   findings: ForensicFinding[];
   disclaimer: string;
+  skipped?: OddTransactionResult["skipped"];
 }
 
 export const FORENSIC_DISCLAIMER =
@@ -52,7 +63,10 @@ export const FORENSIC_DISCLAIMER =
 const DIGIT_TEST_KINDS = new Set<Transaction["kind"]>(["payment", "deposit", undefined]);
 const SET_PRICE_KINDS = new Set<Transaction["kind"]>(["charge"]);
 
-export function runForensicSuite(txns: Transaction[]): ForensicReport {
+export function runForensicSuite(
+  txns: Transaction[],
+  options: OddTransactionOptions = {},
+): ForensicReport {
   const findings: ForensicFinding[] = [];
   const eligible = txns.filter((txn) => DIGIT_TEST_KINDS.has(txn.kind));
   const eligibleAmounts = absoluteAmounts(eligible);
@@ -205,12 +219,15 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     });
   }
 
+  const extra = oddTransactions(txns, options);
+  findings.push(...extra.findings);
   return {
     n: txns.length,
     benfordFirst: first.n >= BENFORD_MIN_SAMPLE ? first : undefined,
     benfordSecond: second.n >= BENFORD_SECOND_MIN_SAMPLE ? second : undefined,
     findings,
     disclaimer: FORENSIC_DISCLAIMER,
+    skipped: extra.skipped,
   };
 }
 

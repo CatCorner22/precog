@@ -18,6 +18,8 @@ import {
 } from "@/lib/precog/stats/forensic-display";
 import { parsePastedAmounts } from "@/lib/precog/stats/pasted-amounts";
 import { parseTransactionsCsv } from "@/lib/precog/stats/transactions-csv";
+import { usePractice } from "@/lib/precog/practice-context";
+import { localDateKey } from "@/lib/precog/dates";
 
 /** Where the screened records came from; the demo must never pass for the owner's data. */
 type Source = "demo" | "file" | "paste";
@@ -28,13 +30,29 @@ type Source = "demo" | "file" | "paste";
  */
 export function ForensicPanel({ headingLevel = 2 }: { headingLevel?: 2 | 3 }) {
   const titleAs = headingLevel === 3 ? "h3" : "h2";
+  const { profile } = usePractice();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [source, setSource] = useState<Source | null>(null);
   const [undated, setUndated] = useState(false);
   const [paste, setPaste] = useState("");
   const [issues, setIssues] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
-  const report = useMemo(() => runForensicSuite(transactions), [transactions]);
+  const today = localDateKey(new Date());
+  const report = useMemo(
+    () =>
+      runForensicSuite(transactions, {
+        today,
+        datesKnown: !undated,
+        limits: profile.dualRelease.enabled
+          ? Object.fromEntries(
+              profile.dualRelease.rules
+                .filter((r) => r.enabled)
+                .map((r) => [r.channel, r.thresholdUsd]),
+            )
+          : {},
+      }),
+    [transactions, today, undated, profile.dualRelease],
+  );
   const findings = screenFindings(report, undated);
   const first = report.benfordFirst;
 
@@ -121,6 +139,17 @@ export function ForensicPanel({ headingLevel = 2 }: { headingLevel?: 2 | 3 }) {
             <ul className="space-y-1 text-xs text-warn">
               {issues.map((issue) => (
                 <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-subtle">
+            Optional CSV columns: payee, check or invoice number, time (HH:mm), account and channel
+            (for example, check or ach). Negative amounts mean money out.
+          </p>
+          {!!report.skipped?.length && source && (
+            <ul className="text-xs text-muted" aria-label="Checks that could not run">
+              {report.skipped.map((s) => (
+                <li key={s.id}>{s.reason}</li>
               ))}
             </ul>
           )}
