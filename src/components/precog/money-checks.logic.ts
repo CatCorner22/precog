@@ -67,15 +67,43 @@ export function runScreenChecks(
       "money_out_without_second",
     ] as const)
       unavailable.set(check, "Books file");
+  const incomplete: SkippedCheck[] = [];
+  for (const [file, value, checks] of [
+    ["bank", input.bank, ["unmatched_bank_line", "deposit_not_banked"]],
+    [
+      "books",
+      input.books,
+      [
+        "unmatched_bank_line",
+        "deposit_not_banked",
+        "duplicate_payment",
+        "backdated_entry",
+        "closed_period_entry",
+        "money_out_without_second",
+      ],
+    ],
+  ] as const) {
+    if (value?.issues.length)
+      for (const check of checks)
+        incomplete.push({
+          check,
+          missingColumn: `${file} file`,
+          reason: `The ${file} file had rejected rows; fix them and upload again.`,
+        });
+  }
+  const isIncomplete = (check: CheckKey) => incomplete.some((skip) => skip.check === check);
   return {
-    findings: result.findings.filter((f) => !unavailable.has(f.check)),
+    findings: result.findings.filter((f) => !unavailable.has(f.check) && !isIncomplete(f.check)),
     skipped: [
-      ...result.skipped.filter((s) => !unavailable.has(s.check)),
-      ...[...unavailable].map(([check, files]) => ({
-        check,
-        missingColumn: files,
-        reason: `No ${files} loaded. Choose the file to run this check.`,
-      })),
+      ...result.skipped.filter((s) => !unavailable.has(s.check) && !isIncomplete(s.check)),
+      ...[...unavailable]
+        .filter(([check]) => !isIncomplete(check))
+        .map(([check, files]) => ({
+          check,
+          missingColumn: files,
+          reason: `No ${files} loaded. Choose the file to run this check.`,
+        })),
+      ...incomplete,
     ],
   };
 }

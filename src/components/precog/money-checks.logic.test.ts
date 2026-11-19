@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { getIndustryTemplate } from "@/lib/precog/templates";
-import { importBankCsv, importBooksCsv } from "@/lib/precog/money-checks/import";
+import { importBankCsv, importBooksCsv, MAX_ROWS } from "@/lib/precog/money-checks/import";
 import { withMoneyRun } from "@/lib/precog/money-checks/profile-state";
 import {
   addClose,
@@ -96,6 +96,57 @@ describe("money-check screen logic", () => {
       runScreenChecks({ ...base, bank: importBankCsv("bad header"), books }).skipped.find(
         (s) => s.check === "unmatched_bank_line",
       )?.reason,
-    ).toContain("Bank file");
+    ).toBe("The bank file had rejected rows; fix them and upload again.");
+  });
+  it("keeps findings open for mixed valid/rejected bank and books rows, and for truncation", () => {
+    const bank = importBankCsv("date,amount,description\n2026-11-01,10,Receipt");
+    const books = importBooksCsv("date,amount,type\n2026-11-01,20,deposit");
+    const first = runScreenChecks({ ...base, bank, books });
+    const previous = withMoneyRun(profile, first, base.today);
+    const old = previous.moneyChecks!.ledger.find((r) => r.check === "unmatched_bank_line")!;
+    expect(old.status).toBe("open");
+    const badBank = importBankCsv(
+      "date,amount,description\n2026-11-01,20,Receipt\ninvalid,10,Rejected",
+    );
+    const badBooks = importBooksCsv("date,amount,type\n2026-11-01,10,deposit\ninvalid,10,deposit");
+    const truncatedBank = importBankCsv(
+      "date,amount,description\n" +
+        Array.from({ length: MAX_ROWS + 1 }, () => "2026-11-01,20,Receipt").join("\n"),
+    );
+    const truncatedBooks = importBooksCsv(
+      "date,amount,type\n" +
+        Array.from({ length: MAX_ROWS + 1 }, () => "2026-11-01,10,deposit").join("\n"),
+    );
+    for (const [file, bad] of [
+      ["bank", badBank],
+      ["books", badBooks],
+      ["bank", truncatedBank],
+      ["books", truncatedBooks],
+    ] as const) {
+      expect(bad.rows.length).toBeGreaterThan(0);
+      expect(bad.issues.length).toBeGreaterThan(0);
+      const next = runScreenChecks({ ...base, bank, books, [file]: bad });
+      const skips = next.skipped.filter(
+        (s) => s.reason === `The ${file} file had rejected rows; fix them and upload again.`,
+      );
+      expect(skips.map((s) => s.check)).toEqual(
+        file === "bank"
+          ? ["unmatched_bank_line", "deposit_not_banked"]
+          : [
+              "unmatched_bank_line",
+              "deposit_not_banked",
+              "duplicate_payment",
+              "backdated_entry",
+              "closed_period_entry",
+              "money_out_without_second",
+            ],
+      );
+      expect(
+        withMoneyRun(previous, next, base.today).moneyChecks!.ledger.find((r) => r.id === old.id),
+      ).toEqual(old);
+      expect(skips.map(skippedReason)).toContain(
+        `The ${file} file had rejected rows; fix them and upload again.`,
+      );
+    }
   });
 });
