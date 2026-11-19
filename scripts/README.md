@@ -30,6 +30,13 @@ Each needs a local disposable Postgres in `DATABASE_URL` and its own opt-in flag
 
 ## Browser suites
 
+`e2e-transcript-check.mjs` is an opt-in local authenticated suite using the same
+isolated Postgres, signed-session fixture and compiled server as account safety
+(`PRECOG_AUTH_TEST=1`, `DATABASE_URL`, `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`). It
+compares the committed transcript fixtures, checks all four difference types and
+positions, and verifies no upload or persistence. `E2E_TRANSCRIPT_SCREENSHOT=<path>`
+captures the comparison. It is not a CI job.
+
 Each takes the base URL as its first argument (default `http://127.0.0.1:8080/`)
 and needs `npx playwright install --with-deps chromium` once.
 
