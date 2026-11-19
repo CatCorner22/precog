@@ -62,6 +62,7 @@ import type { Place, Procedure } from "./procedures/types";
 import { normalizeSetupAnswers, type SetupAnswers } from "./onboarding/setup-answers";
 import { normalizeOnboardingFacts, type OnboardingFacts } from "./onboarding/decision-model";
 import { trimDecisions } from "./decisions/trim";
+import { normalizePhysicalRisk, type PhysicalRiskInput } from "./physical-risk";
 
 /**
  * One business: what it is, the owner's own team, map and register (or null
@@ -70,6 +71,7 @@ import { trimDecisions } from "./decisions/trim";
  * through, and this browser's portfolio of businesses.
  */
 export interface PracticeProfile {
+  physicalRisk?: PhysicalRiskInput;
   /** Account that owns this row when it was opened from a shared portfolio. */
   ownerUserId?: string;
   practiceName: string;
@@ -417,6 +419,7 @@ export function normalizeProfile(
   const setupAnswers = normalizeSetupAnswers(parsed.setupAnswers);
   const setupControlsWithdrawn = normalizeSetupControlsWithdrawn(parsed.setupControlsWithdrawn);
   const onboardingFacts = normalizeOnboardingFacts(parsed.onboardingFacts);
+  const physicalRisk = normalizePhysicalRisk(parsed.physicalRisk);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
       industry,
@@ -455,6 +458,7 @@ export function normalizeProfile(
         ? parsed.onboardingComplete
         : (options.onboardingCompleteFallback ?? true),
     ...(onboardingFacts ? { onboardingFacts } : {}),
+    ...(physicalRisk ? { physicalRisk } : {}),
     customProcesses,
     customPeople,
     customKnowledge,
@@ -936,6 +940,7 @@ export function hasUserWork(profile: PracticeProfile): boolean {
     profile.customPeople ||
     profile.customKnowledge?.length ||
     profile.customRelations?.length ||
+    profile.physicalRisk ||
     profile.decisions.length ||
     profile.mapVersions?.length ||
     profile.savedProcessBlocks?.length ||
@@ -1138,7 +1143,13 @@ export function writePortfolioEntry(
   const stored = readStoredPortfolio(storage);
   if (stored.kind === "unreadable" && !stored.kept) return "unreadable";
   const all = stored.kind === "entries" ? stored.entries : {};
-  all[id] = { ...profile, businessId: id };
+  all[id] = {
+    ...profile,
+    businessId: id,
+    ...(profile.physicalRisk !== undefined
+      ? { physicalRisk: normalizePhysicalRisk(profile.physicalRisk) }
+      : {}),
+  };
   return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage) ? "saved" : "refused";
 }
 
