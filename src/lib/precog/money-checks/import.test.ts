@@ -1,9 +1,29 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseCents, parseMoneyDate } from "./parse";
+import { formatCents, parseCents, parseMoneyDate, type Cents } from "./parse";
 import { importBankCsv, importBooksCsv } from "./import";
 
 describe("exact money inputs", () => {
+  it.each([
+    [123456, "$1,234.56"],
+    [-500, "-$5.00"],
+    [0, "$0.00"],
+    [-0, "$0.00"],
+    [1, "$0.01"],
+    [-1, "-$0.01"],
+    [99, "$0.99"],
+    [-99, "-$0.99"],
+    [Number.MAX_SAFE_INTEGER, "$90,071,992,547,409.91"],
+    [Number.MIN_SAFE_INTEGER, "-$90,071,992,547,409.91"],
+  ])("formats %s cents exactly", (cents, dollars) => {
+    expect(formatCents(cents as Cents)).toBe(dollars);
+  });
+  it.each([NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    "refuses invalid cents %s",
+    (cents) => {
+      expect(() => formatCents(cents as Cents)).toThrow(RangeError);
+    },
+  );
   it.each([
     ["1,240.00", 124000],
     ["-$12.5", -1250],

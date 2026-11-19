@@ -22,6 +22,26 @@ const check = (key: string, bank = bankFile(), books = booksFile(), closes?: str
   runChecks({ bank, books, today, closes }).findings.filter((f) => f.check === key);
 
 describe("money checks 1 to 5", () => {
+  it("formats exact dollars in every finding sentence", () => {
+    const findings = runChecks({
+      bank: bankFile([`${day(10)},-0.05,Test,R1`]),
+      books: booksFile([
+        entry(day(10)),
+        entry(day(10), "payment_received", "P1"),
+        entry(day(10), "payment_received", "P2"),
+        entry(day(10), "refund", "R1", day(1)),
+      ]),
+      today,
+      closes: [day(5)],
+    }).findings;
+    expect(new Set(findings.map((f) => f.check)).size).toBe(5);
+    for (const finding of findings) {
+      const amount =
+        finding.amountCents === -5 ? "-$0.05" : finding.amountCents < 0 ? "-$10.00" : "$10.00";
+      expect(finding.sentence).toContain(`for ${amount}`);
+      expect(finding.sentence).not.toContain(" cents");
+    }
+  });
   it.each([
     [1, null],
     [2, "info"],

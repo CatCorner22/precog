@@ -1,6 +1,7 @@
 import { daysBetween, isCalendarDate } from "../dates";
 import type { BankRow, BooksRow, MoneyImport } from "./import";
 import type { Cents } from "./parse";
+import { formatCents } from "./parse";
 
 export const LOOKBACK_DAYS = 45;
 export const MATCH_DAYS = 3;
@@ -141,7 +142,7 @@ export function runChecks({
         "unmatched_bank_line",
         line,
         days > BANK_REVIEW_AFTER_DAYS ? "review" : days >= BANK_WATCH_DAYS ? "watch" : "info",
-        `A bank line dated ${line.date} for ${line.amountCents} cents has no matching books entry after ${days} days.`,
+        `A bank line dated ${line.date} for ${formatCents(line.amountCents)} has no matching books entry after ${days} days.`,
       );
   }
   for (const row of bookRows) {
@@ -156,7 +157,7 @@ export function runChecks({
         "deposit_not_banked",
         row,
         days > DEPOSIT_REVIEW_AFTER_DAYS ? "review" : "watch",
-        `A deposit dated ${row.date} for ${row.amountCents} cents has no matching bank line after ${days} days.`,
+        `A deposit dated ${row.date} for ${formatCents(row.amountCents)} has no matching bank line after ${days} days.`,
       );
   }
   if (available("duplicate_payment", ["account"])) {
@@ -178,7 +179,7 @@ export function runChecks({
           "duplicate_payment",
           row,
           "info",
-          `Multiple payments received on ${row.date} for ${row.amountCents} cents share one account and effective date; this is a later entry.`,
+          `Multiple payments received on ${row.date} for ${formatCents(row.amountCents)} share one account and effective date; this is a later entry.`,
           [group[0].sourceRow],
         );
     }
@@ -195,7 +196,7 @@ export function runChecks({
           "backdated_entry",
           row,
           lag > BACKDATE_REVIEW_AFTER_DAYS ? "review" : "watch",
-          `An entry for ${row.amountCents} cents effective ${row.date} was entered on ${row.entryDate}, ${lag} days later.`,
+          `An entry for ${formatCents(row.amountCents)} effective ${row.date} was entered on ${row.entryDate}, ${lag} days later.`,
         );
     }
   }
@@ -212,7 +213,7 @@ export function runChecks({
           "closed_period_entry",
           row,
           rows.length > 1 ? "review" : "watch",
-          `An entry for ${row.amountCents} cents effective ${row.date} was entered on ${row.entryDate}, after the period closed through ${close}.`,
+          `An entry for ${formatCents(row.amountCents)} effective ${row.date} was entered on ${row.entryDate}, after the period closed through ${close}.`,
           [],
           close,
         );

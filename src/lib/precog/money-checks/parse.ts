@@ -3,6 +3,14 @@ import { isCalendarDate } from "../dates";
 export type Cents = number & { readonly __cents: unique symbol };
 export type Parsed<T> = { value: T } | { issue: string };
 
+export function formatCents(cents: Cents): string {
+  if (!Number.isSafeInteger(cents)) throw new RangeError("Amount must be exact whole cents");
+  const value = BigInt(cents);
+  const digits = (value < 0n ? -value : value).toString().padStart(3, "0");
+  const dollars = digits.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${value < 0n ? "-" : ""}$${dollars}.${digits.slice(-2)}`;
+}
+
 export function parseCents(input: string): Parsed<Cents> {
   let text = input.trim();
   const negative = text.startsWith("(") && text.endsWith(")");
