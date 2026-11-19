@@ -29,6 +29,10 @@ describe("Practice desk reference loader", () => {
     expect(searchPracticeReferenceFromDisk("   ")).toEqual([]);
   });
 
+  it("ranks title matches before body-only matches", () => {
+    expect(searchPracticeReferenceFromDisk("SOP")[0]?.id).toBe(40);
+  });
+
   it("keeps practice-specific location names out of bundled Practice knowledge", () => {
     const privateLocationPattern = new RegExp(["corner", "stone|knox", "ville"].join(""), "i");
     expect(readPracticeKnowledgeFromDisk()).not.toMatch(privateLocationPattern);

@@ -93,9 +93,11 @@ export function searchPracticeReferenceFromDisk(query: string): PracticeSearchRe
   if (!terms.length) return [];
   return listPracticeSectionsFromDisk()
     .map((section) => {
+      const normalizedTitle = section.title.toLocaleLowerCase("en-US");
       const content = `${section.title} ${section.text}`;
       const normalized = content.toLocaleLowerCase("en-US");
       const matches = terms.filter((term) => normalized.includes(term)).length;
+      const titleMatch = terms.some((term) => normalizedTitle.includes(term));
       const normalizedBody = section.text.toLocaleLowerCase("en-US");
       const phraseStart = normalizedBody.indexOf(normalizedQuery);
       const firstMatchingTerm = terms.find((term) => normalizedBody.includes(term));
@@ -109,10 +111,15 @@ export function searchPracticeReferenceFromDisk(query: string): PracticeSearchRe
         start < 0
           ? section.text.slice(0, 240)
           : section.text.slice(Math.max(0, start - 80), Math.min(section.text.length, start + 180));
-      return { id: section.id, title: section.title, excerpt, matches };
+      return { id: section.id, title: section.title, excerpt, titleMatch, matches };
     })
     .filter((result) => result.matches > 0)
-    .sort((left, right) => right.matches - left.matches || left.id - right.id)
+    .sort(
+      (left, right) =>
+        Number(right.titleMatch) - Number(left.titleMatch) ||
+        right.matches - left.matches ||
+        left.id - right.id,
+    )
     .slice(0, 12)
     .map(({ id, title, excerpt }) => ({ id, title, excerpt }));
 }
