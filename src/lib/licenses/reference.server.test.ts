@@ -4,16 +4,17 @@ import { listLicenseReferencesFromDisk } from "./reference.server";
 describe("license reference loader", () => {
   const references = listLicenseReferencesFromDisk();
 
-  it("returns six ordered references with verification dates and source links", () => {
+  it("returns seven ordered references with verification dates and source links", () => {
     expect(references.map((reference) => reference.id)).toEqual([
       "dentist",
       "dentist-sedation-permits",
       "dental-hygienist",
       "dental-assistant-registered",
       "dental-assistant-practical",
+      "certifications-and-specialties",
       "treatments",
     ]);
-    expect(references).toHaveLength(6);
+    expect(references).toHaveLength(7);
     for (const reference of references) {
       expect(reference.last_verified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(reference.sources.length).toBeGreaterThan(0);

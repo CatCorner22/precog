@@ -14,6 +14,7 @@ const fileOrder = [
   ["dental-hygienist.md", "Hygienist"],
   ["dental-assistant-registered.md", "Registered assistant"],
   ["dental-assistant-practical.md", "Practical assistant"],
+  ["certifications-and-specialties.md", "Certifications"],
   ["treatments.md", "Who may do it"],
 ] as const;
 
