@@ -111,6 +111,14 @@ export const moneyToolInfo = {
 const levels = () => ({ info: 0, watch: 0, review: 0 });
 function summary(_: object, { profile, today }: Context): ToolOutput {
   const state = normalizeMoneyChecks(profile.moneyChecks);
+  const assessed = Boolean(
+    state &&
+    (state.lastRun ||
+      state.ledger.length ||
+      state.reconciliationSignoffs.length ||
+      state.channelSignoffs.length ||
+      state.skipped !== undefined),
+  );
   const byLevel = levels();
   const byCheck = Object.fromEntries(moneyCheckKeys.map((key) => [key, levels()]));
   for (const row of state?.ledger ?? [])
@@ -120,7 +128,7 @@ function summary(_: object, { profile, today }: Context): ToolOutput {
     }
   const reconciliationGaps: { month: string; reason: string }[] = [];
   let cursor = `${today.slice(0, 7)}-01`;
-  if (state)
+  if (state && assessed)
     for (let i = 0; i < RECONCILIATION_MONTHS; i++) {
       const end = shiftDay(cursor, -1),
         month = end.slice(0, 7);
@@ -141,7 +149,7 @@ function summary(_: object, { profile, today }: Context): ToolOutput {
     }
   const month = today.slice(0, 7);
   const channelGaps =
-    state && profile.dualRelease.enabled
+    state && assessed && profile.dualRelease.enabled
       ? [...new Set(profile.dualRelease.rules.filter((r) => r.enabled).map((r) => r.channel))]
           .sort()
           .filter(
@@ -154,9 +162,10 @@ function summary(_: object, { profile, today }: Context): ToolOutput {
       : [];
   return {
     ok: true,
-    summary: `${state ? "Saved open money findings and sign-off gaps." : "No money-check data has been saved."} ${state?.skipped === undefined ? "Skipped-check coverage was not recorded." : "Skipped checks reflect the last saved run."} ${advisory}`,
+    summary: `${assessed ? "Saved open money findings and sign-off gaps." : "No money-check data has been saved."} ${state?.skipped === undefined ? "Skipped-check coverage was not recorded." : "Skipped checks reflect the last saved run."} ${advisory}`,
     data: {
-      assessed: Boolean(state),
+      assessed,
+      asOf: today,
       byLevel,
       byCheck,
       lastRun: state?.lastRun ?? null,
@@ -171,7 +180,7 @@ function explain({ key }: { key?: string }, { profile }: Context): ToolOutput {
     return {
       ok: true,
       summary: `Choose a check key or a saved finding id. ${advisory}`,
-      data: { keys: moneyCheckKeys },
+      data: { keys: [...moneyCheckKeys] },
     };
   const check =
     moneyCheckKeys.find((c) => c === key) ??
@@ -184,6 +193,7 @@ function explain({ key }: { key?: string }, { profile }: Context): ToolOutput {
     data: {
       check,
       ...checks[check],
+      thresholds: { ...checks[check].thresholds },
       advisory,
       ...(check === "money_out_without_second"
         ? {

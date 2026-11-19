@@ -293,7 +293,10 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 // the largest chunk was unchanged.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 940 * 1024,
+  // 2026-11-19: Voyager's read-only money tools and saved skipped-check
+  // metadata, combined with latest main's reference routes, measure
+  // 942.1 KB total. Allow the next whole KB plus 2 KB of CI variation.
+  totalGzipBytes: 945 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

@@ -47,8 +47,10 @@ import {
 import { formatUsd } from "@/lib/utils";
 import { localDateKey } from "../dates";
 import { DEFAULT_FRAUD_STATS } from "../templates/shared-controls";
+import { moneyTools, moneyToolInfo, moneyQuestionKey } from "./money-tools";
 
 export interface ToolContext {
+  moneyCheckInput?: unknown;
   /** The business being advised. Every tool is a pure function of this. */
   profile?: PracticeProfile;
   /** The owner's question; retrieve_guidance searches the corpus with it. */
@@ -89,11 +91,20 @@ export function planTools(question: string): ToolName[] {
   if (/scenario|timeline|impact|loss|embezzl|fraud|cash|compare/.test(q)) {
     tools.add("compare_scenario_futures");
   }
+  if (
+    /money|bank|books|reconcil|sign.?off|deposit|payment|closed.period|backdat|decision.overdue|sole.money/.test(
+      q,
+    )
+  ) {
+    tools.add("money_checks_summary");
+    tools.add("explain_money_check");
+  }
   return Array.from(tools);
 }
 
 /** The inputs every tool reads, built once per request; the costly ones on first use. */
 interface ToolInputs extends ScenarioToolInput, ContinuityToolInput {
+  moneyCheckInput?: unknown;
   question?: string;
   sodReport(): ReturnType<typeof detectSodConflicts>;
   portfolio(): ReturnType<typeof portfolioSummary>;
@@ -106,6 +117,18 @@ interface ToolSpec {
 }
 
 const TOOLS = {
+  money_checks_summary: {
+    ...moneyToolInfo.money_checks_summary,
+    run: (inputs: ToolInputs) => moneyTools.money_checks_summary.run({}, inputs),
+  },
+  explain_money_check: {
+    ...moneyToolInfo.explain_money_check,
+    run: (inputs: ToolInputs) =>
+      moneyTools.explain_money_check.run(
+        inputs.moneyCheckInput ?? { key: moneyQuestionKey(inputs.question, inputs.profile) },
+        inputs,
+      ),
+  },
   get_practice_snapshot: {
     description: "Business name, team, risk variables, published fraud figures.",
     run: practiceSnapshot,
@@ -241,6 +264,7 @@ function toolInputs(ctx: ToolContext): ToolInputs {
   const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
   return {
     profile,
+    moneyCheckInput: ctx.moneyCheckInput,
     question: ctx.question,
     today: ctx.today ?? localDateKey(new Date()),
     tpl,
