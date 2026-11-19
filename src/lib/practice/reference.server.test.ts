@@ -29,7 +29,8 @@ describe("Practice desk reference loader", () => {
     expect(searchPracticeReferenceFromDisk("   ")).toEqual([]);
   });
 
-  it("ranks title matches before body-only matches", () => {
+  it("ranks whole phrases and substantive title terms", () => {
+    expect(searchPracticeReferenceFromDisk("impact and likelihood")[0]?.id).toBe(30);
     expect(searchPracticeReferenceFromDisk("SOP")[0]?.id).toBe(40);
   });
 

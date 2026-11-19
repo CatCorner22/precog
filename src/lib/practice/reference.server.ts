@@ -89,18 +89,39 @@ export function listPracticeSectionsFromDisk(): PracticeSection[] {
 
 export function searchPracticeReferenceFromDisk(query: string): PracticeSearchResult[] {
   const normalizedQuery = query.toLocaleLowerCase("en-US").trim().replace(/\s+/g, " ");
-  const terms = normalizedQuery.split(" ").filter(Boolean);
-  if (!terms.length) return [];
+  const rawTerms = normalizedQuery.split(" ").filter(Boolean);
+  if (!rawTerms.length) return [];
+  const stopwords = new Set([
+    "a",
+    "an",
+    "and",
+    "or",
+    "the",
+    "of",
+    "to",
+    "in",
+    "for",
+    "on",
+    "with",
+    "by",
+    "at",
+    "is",
+    "are",
+  ]);
+  const terms = rawTerms.filter((term) => !stopwords.has(term));
+  const searchTerms = terms.length ? terms : rawTerms;
   return listPracticeSectionsFromDisk()
     .map((section) => {
       const normalizedTitle = section.title.toLocaleLowerCase("en-US");
       const content = `${section.title} ${section.text}`;
       const normalized = content.toLocaleLowerCase("en-US");
-      const matches = terms.filter((term) => normalized.includes(term)).length;
-      const titleMatch = terms.some((term) => normalizedTitle.includes(term));
       const normalizedBody = section.text.toLocaleLowerCase("en-US");
+      const titlePhraseMatch = normalizedTitle.includes(normalizedQuery);
+      const bodyPhraseMatch = normalizedBody.includes(normalizedQuery);
+      const allTermsInTitle = searchTerms.every((term) => normalizedTitle.includes(term));
+      const matches = searchTerms.filter((term) => normalized.includes(term)).length;
       const phraseStart = normalizedBody.indexOf(normalizedQuery);
-      const firstMatchingTerm = terms.find((term) => normalizedBody.includes(term));
+      const firstMatchingTerm = searchTerms.find((term) => normalizedBody.includes(term));
       const start =
         phraseStart >= 0
           ? phraseStart
@@ -111,12 +132,22 @@ export function searchPracticeReferenceFromDisk(query: string): PracticeSearchRe
         start < 0
           ? section.text.slice(0, 240)
           : section.text.slice(Math.max(0, start - 80), Math.min(section.text.length, start + 180));
-      return { id: section.id, title: section.title, excerpt, titleMatch, matches };
+      return {
+        id: section.id,
+        title: section.title,
+        excerpt,
+        titlePhraseMatch,
+        bodyPhraseMatch,
+        allTermsInTitle,
+        matches,
+      };
     })
     .filter((result) => result.matches > 0)
     .sort(
       (left, right) =>
-        Number(right.titleMatch) - Number(left.titleMatch) ||
+        Number(right.titlePhraseMatch) - Number(left.titlePhraseMatch) ||
+        Number(right.bodyPhraseMatch) - Number(left.bodyPhraseMatch) ||
+        Number(right.allTermsInTitle) - Number(left.allTermsInTitle) ||
         right.matches - left.matches ||
         left.id - right.id,
     )
