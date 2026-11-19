@@ -1,0 +1,4 @@
+Entry date,Effective date,Amount,Type,Customer,Reference,Entered by,Approved by,Reverses,Closed period
+2026-11-01,2026-11-01,45.00,payment received,Sample customer,C1,Staff A,Staff B,,
+2026-11-02,2026-11-02,-12.50,payment out,Sample supplier,C2,Staff A,Staff B,,
+2026-11-03,2026-11-03,1240.00,deposit,Sample account,C3,Staff A,Staff B,,2026-10
