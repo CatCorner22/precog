@@ -17,7 +17,17 @@ export type CheckKey =
   | "deposit_not_banked"
   | "duplicate_payment"
   | "backdated_entry"
-  | "closed_period_entry";
+  | "closed_period_entry"
+  | "money_out_without_second"
+  | "sole_money_duty_holder"
+  | "decision_overdue"
+  | "weak_reconciliation";
+export interface SkippedCheck {
+  check: CheckKey;
+  missingColumn: string;
+  reason?: string;
+  sourceRow?: number;
+}
 export interface MoneyFinding {
   id: string;
   check: CheckKey;
@@ -29,17 +39,17 @@ export interface MoneyFinding {
 }
 type Row = BankRow | BooksRow;
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const key = (r: Row) =>
+export const sourceKey = (r: Row) =>
   JSON.stringify([
     r.date,
     r.amountCents,
     r.reference ?? "",
     "type" in r ? [r.type, r.account ?? "", r.entryDate, r.reverses ?? ""] : [],
   ]);
-const order = (a: Row, b: Row) =>
+export const sourceOrder = (a: Row, b: Row) =>
   compare(a.date, b.date) ||
   a.amountCents - b.amountCents ||
-  compare(key(a), key(b)) ||
+  compare(sourceKey(a), sourceKey(b)) ||
   a.sourceRow - b.sourceRow;
 
 export function runChecks({
@@ -52,26 +62,26 @@ export function runChecks({
   books: MoneyImport<BooksRow>;
   today: string;
   closes?: readonly string[];
-}): { findings: MoneyFinding[]; skipped: { check: CheckKey; missingColumn: string }[] } {
+}): { findings: MoneyFinding[]; skipped: SkippedCheck[] } {
   if (!isCalendarDate(today) || closes?.some((date) => !isCalendarDate(date)))
     throw new Error("Use valid calendar dates for today and closes");
   const findings: MoneyFinding[] = [];
-  const skipped: { check: CheckKey; missingColumn: string }[] = [];
+  const skipped: SkippedCheck[] = [];
   const ages = new Map<string, number>();
   const age = (date: string) => {
     if (!ages.has(date)) ages.set(date, daysBetween(date, today)!);
     return ages.get(date)!;
   };
   const recent = (date: string) => age(date) >= 0 && age(date) <= LOOKBACK_DAYS;
-  const bankRows = [...bank.rows].filter((r) => age(r.date) >= 0).sort(order);
+  const bankRows = [...bank.rows].filter((r) => age(r.date) >= 0).sort(sourceOrder);
   const bookRows = [...books.rows]
     .filter((r) => age(r.date) >= 0 && age(r.entryDate) >= 0)
-    .sort(order);
+    .sort(sourceOrder);
   const identities = new Map<Row, string>();
   for (const rows of [bankRows, bookRows]) {
     const counts = new Map<string, number>();
     for (const row of rows) {
-      const source = key(row);
+      const source = sourceKey(row);
       const occurrence = (counts.get(source) ?? 0) + 1;
       counts.set(source, occurrence);
       identities.set(row, `${source}:${occurrence}`);
@@ -172,7 +182,7 @@ export function runChecks({
       groups.set(groupKey, [...(groups.get(groupKey) ?? []), row]);
     }
     for (const group of groups.values()) {
-      group.sort((a, b) => compare(a.entryDate, b.entryDate) || order(a, b));
+      group.sort((a, b) => compare(a.entryDate, b.entryDate) || sourceOrder(a, b));
       if (group.some((r) => r.reference && reversed.has(r.reference))) continue;
       for (const row of group.slice(1))
         add(
