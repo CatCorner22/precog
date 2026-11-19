@@ -29,6 +29,13 @@ describe("Practice desk reference loader", () => {
     expect(searchPracticeReferenceFromDisk("   ")).toEqual([]);
   });
 
+  it("omits generated apparatus sections and preserves source keys", () => {
+    const sections = listPracticeSectionsFromDisk();
+    expect(sections.some(({ id }) => [2, 91, 92, 99].includes(id))).toBe(false);
+    expect(sections.every(({ text }) => !/^[\s\p{Pd}]*$/u.test(text))).toBe(true);
+    expect(sections.find(({ id }) => id === 90)?.text).toContain("[S1]");
+  });
+
   it("ranks whole phrases and substantive title terms", () => {
     expect(searchPracticeReferenceFromDisk("impact and likelihood")[0]?.id).toBe(30);
     expect(searchPracticeReferenceFromDisk("SOP")[0]?.id).toBe(40);

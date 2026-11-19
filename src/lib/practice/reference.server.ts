@@ -5,6 +5,7 @@ const knowledgeFiles = import.meta.glob<string>("/knowledge/practice/**/*.md", {
   import: "default",
   eager: true,
 });
+const generatedApparatusSectionIds = new Set([2, 91, 92, 99]);
 
 function readFiles() {
   return Object.entries(knowledgeFiles)
@@ -26,19 +27,21 @@ function referenceText() {
   return reference.text;
 }
 
-function plainText(markdown: string) {
-  return markdown
+function plainText(markdown: string, preserveSourceKeys = false) {
+  const text = markdown
     .replace(/^<!--[\s\S]*?-->\s*$/gm, "")
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/{{index:[^}]+}}/g, "")
     .replace(/^\*\*(?:Rule|Elements|Test \/ steps|Open)\.\*\*\s*/gm, "")
     .replace(/^\*\*Examples\.\*\*\s*/gm, "")
     .replace(/^Last verified:\s*\d{4}-\d{2}-\d{2}\s*$/gm, "")
-    .replace(/\s*\[S\d+(?:\s+at [^\]]+)?\]/g, "")
     .replace(/[*_`>#]/g, "")
-    .replace(/\[[^\]]+\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
+  return preserveSourceKeys
+    ? text
+    : text.replace(/\s*\[S\d+(?:\s+at [^\]]+)?\]/g, "").replace(/\s+/g, " ").trim();
 }
 
 function headingSections(markdown: string) {
@@ -80,11 +83,13 @@ export function listPracticeFunctionsFromDisk(): PracticeFunction[] {
 }
 
 export function listPracticeSectionsFromDisk(): PracticeSection[] {
-  return headingSections(referenceText()).map(({ id, title, body }) => ({
-    id,
-    title,
-    text: plainText(body),
-  }));
+  return headingSections(referenceText())
+    .filter(({ id }) => !generatedApparatusSectionIds.has(id))
+    .map(({ id, title, body }) => ({
+      id,
+      title,
+      text: plainText(body, id === 90),
+    }));
 }
 
 export function searchPracticeReferenceFromDisk(query: string): PracticeSearchResult[] {
