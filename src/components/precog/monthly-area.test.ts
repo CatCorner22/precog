@@ -31,6 +31,11 @@ describe("checkPeriod", () => {
 });
 
 describe("revealMonthlyItem", () => {
+  it("reveals the Money checks subsection without adding a tab", () => {
+    const money = element();
+    expect(revealMonthlyItem("money-checks", page({ "money-checks": money }))).toBe(true);
+    expect(money.scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+  });
   it("scrolls to the check an item names and focuses it", () => {
     const check = element();
     const checks = element();

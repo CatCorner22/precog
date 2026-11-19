@@ -195,6 +195,19 @@ const CASES: Record<
         },
       ]),
   },
+  setMoneyChecks: {
+    run: (e) =>
+      e.setMoneyChecks(() => ({
+        ledger: [],
+        reconciliationSignoffs: [],
+        channelSignoffs: [],
+        lastRun: TODAY,
+      })),
+    expected: (p) => ({
+      ...p,
+      moneyChecks: { ledger: [], reconciliationSignoffs: [], channelSignoffs: [], lastRun: TODAY },
+    }),
+  },
   setAccessReconciliation: {
     run: (e) => e.setAccessReconciliation(reconciliation),
     expected: (p) => withAccessReconciliation(p, reconciliation),
@@ -326,10 +339,10 @@ describe("makeProfileEdits", () => {
     vi.useRealTimers();
   });
 
-  it("returns the 32 edits of PracticeActions and nothing else", () => {
+  it("returns the 33 edits of PracticeActions and nothing else", () => {
     const { edits } = harness(defaultProfile("dental"));
     expect(Object.keys(edits).sort()).toEqual([...EDIT_NAMES].sort());
-    expect(EDIT_NAMES).toHaveLength(32);
+    expect(EDIT_NAMES).toHaveLength(33);
   });
 
   it.each(EDIT_NAMES)("%s dispatches what its profile-actions function returns", (name) => {

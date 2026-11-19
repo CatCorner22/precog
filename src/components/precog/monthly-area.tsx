@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { ControlEvidencePanel } from "@/components/precog/control-evidence/panel";
 import { DecisionJournal } from "@/components/precog/decision-journal";
@@ -8,6 +8,7 @@ import { usePresentation } from "@/lib/precog/presentation";
 import { revealMonthlyItem } from "./monthly-area.logic";
 import { checkPeriod } from "./monthly-check-id";
 import { PageIntro } from "./page-intro";
+const MoneyChecks = lazy(() => import("./money-checks"));
 
 /**
  * The Monthly review tab: this month's checks first. The evidence log, the
@@ -30,6 +31,7 @@ export function MonthlyArea({
   const [recordOpen, setRecordOpen] = useState(item === "evidence");
   const [calendarOpen, setCalendarOpen] = useState(item === "calendar");
   const [decisionsOpen, setDecisionsOpen] = useState(item === "decisions");
+  const [moneyOpen, setMoneyOpen] = useState(item === "money-checks");
 
   useEffect(() => {
     if (item === "number-patterns") {
@@ -39,13 +41,14 @@ export function MonthlyArea({
     if (item === "evidence") setRecordOpen(true);
     if (item === "calendar") setCalendarOpen(true);
     if (item === "decisions") setDecisionsOpen(true);
+    if (item === "money-checks") setMoneyOpen(true);
   }, [item, openTab]);
 
   useEffect(() => {
     if (!item || item === "number-patterns") return;
     const frame = requestAnimationFrame(() => revealMonthlyItem(item, document));
     return () => cancelAnimationFrame(frame);
-  }, [item, recordOpen, calendarOpen, decisionsOpen]);
+  }, [item, recordOpen, calendarOpen, decisionsOpen, moneyOpen]);
 
   return (
     <div className="space-y-6">
@@ -63,6 +66,13 @@ export function MonthlyArea({
       <section id="checks">
         <MonthlyReview focusPeriod={checkPeriod(item)} />
       </section>
+      <RecordFold id="money-checks" title="Money checks" open={moneyOpen} onToggle={setMoneyOpen}>
+        {moneyOpen && (
+          <Suspense fallback={<p role="status">Loading money checks…</p>}>
+            <MoneyChecks />
+          </Suspense>
+        )}
+      </RecordFold>
       <RecordFold
         id="evidence"
         title="Record of each check"

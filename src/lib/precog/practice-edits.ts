@@ -176,6 +176,9 @@ export function makeProfileEdits({
     setProfile(normalizeProfile(next));
   };
 
+  const setMoneyChecks: PracticeActions["setMoneyChecks"] = (v) => {
+    setProfile((p) => ({ ...p, moneyChecks: resolveUpdate(v, p.moneyChecks) }));
+  };
   const setMonthlyReviews = (v: SetStateAction<ReviewRecord[]>) => {
     setProfile((p) => withMonthlyReviews(p, resolveUpdate(v, p.monthlyReviews ?? [])));
   };
@@ -302,6 +305,7 @@ export function makeProfileEdits({
     reviewDecision,
     replaceProfile,
     setMonthlyReviews,
+    setMoneyChecks,
     setAccessReconciliation,
     setIntegrationDriftFromQbo,
     markReportSent,

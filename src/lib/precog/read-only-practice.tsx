@@ -54,6 +54,7 @@ const READ_ONLY_SYNC: PracticeSync = {
 };
 
 const READ_ONLY_ACTIONS: PracticeActions = {
+  setMoneyChecks: noop,
   setPracticeName: noop,
   setIndustry: noop,
   setStaff: noop,
