@@ -1,6 +1,7 @@
 import { parseRows, normalizeHeader } from "../import/csv";
 import type { Transaction } from "./forensic-suite";
 import { isCalendarDate } from "../dates";
+import { VALID_TIME } from "./odd-transactions";
 
 /** The date formats a transactions file may use, as the import help states them. */
 const ACCEPTED_DATE_FORMATS = "YYYY-MM-DD, MM/DD/YYYY or M/D/YY";
@@ -32,6 +33,13 @@ export function parseTransactionsCsv(text: string): {
     const index = columns.get(name);
     return index === undefined ? undefined : (cells[index] ?? "").trim();
   };
+  const aliases = {
+    payee: ["payee", "vendor", "supplier"],
+    number: ["number", "checknumber", "invoicenumber"],
+    time: ["time", "entrytime", "postedtime"],
+    account: ["account", "ledgeraccount"],
+    channel: ["channel", "method"],
+  };
 
   rows.slice(1).forEach((cells, index) => {
     const row = index + 2;
@@ -53,11 +61,27 @@ export function parseTransactionsCsv(text: string): {
     }
     const memo = cell(cells, "memo");
     const personId = cell(cells, "person");
+    const extra: Partial<Transaction> = {};
+    for (const [field, names] of Object.entries(aliases)) {
+      const [name, value] =
+        names
+          .map((name) => [name, cell(cells, name)] as const)
+          .find(([, v]) => v !== undefined && v !== "") ?? [];
+      if (!value) continue;
+      if (field === "time" && !VALID_TIME.test(value)) {
+        issues.push(`Row ${row}: time not recognized; use HH:mm`);
+        continue;
+      }
+      Object.assign(extra, { [field]: value });
+      if (field === "number" && name !== "number")
+        extra.numberType = name === "invoicenumber" ? "invoice" : "check";
+    }
     transactions.push({
       id: `txn-${row - 1}`,
       row,
       date,
       amount,
+      ...extra,
       ...(kindValue ? { kind: kindValue as Transaction["kind"] } : {}),
       ...(memo !== undefined ? { memo } : {}),
       ...(personId !== undefined ? { personId } : {}),
