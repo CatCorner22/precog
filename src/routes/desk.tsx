@@ -11,7 +11,7 @@ export const Route = createFileRoute("/desk")({
       { title: "Compliance desk | BlakeGPT" },
       {
         name: "description",
-        content: "Search cited Tennessee and federal rules for the dental office.",
+        content: "Search 254 cited Tennessee and federal rule cards for the dental office.",
       },
     ],
   }),
@@ -101,7 +101,7 @@ function ComplianceDesk() {
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Compliance desk</h1>
           <p className="mt-1 text-sm text-muted">
-            Cited Tennessee and federal rules for the dental office.
+            Search 254 cited Tennessee and federal rule cards for the dental office.
           </p>
           <Link
             to="/licenses"
@@ -221,6 +221,10 @@ function ComplianceDesk() {
               </span>
             </div>
             <p className="mt-3 text-sm leading-6 text-muted">{card.excerpt}</p>
+            <details className="mt-4 rounded-xl border border-border bg-elevated px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium">Full card</summary>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{card.body}</p>
+            </details>
             {card.citation && (
               <p className="mt-3 text-xs leading-5 text-subtle">
                 <span className="font-semibold">Citation: </span>

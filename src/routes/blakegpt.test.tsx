@@ -44,7 +44,9 @@ describe("BlakeGPT home", () => {
     expect(html).toContain(
       "Checks for invoices, notice deadlines, duty conflicts and policy wording.",
     );
-    expect(html).toContain("Cited Tennessee and federal rules for the dental office.");
+    expect(html).toContain(
+      "Search 254 cited Tennessee and federal rule cards for the dental office.",
+    );
     expect(html).toContain("Check study numbers, design flaws, and evidence grades.");
     expect(html).toContain(
       "Operating functions, SOPs, controls, and metrics for a dental practice.",

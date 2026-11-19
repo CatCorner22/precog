@@ -30,7 +30,7 @@ const modules = [
   },
   {
     name: "Compliance desk",
-    description: "Cited Tennessee and federal rules for the dental office.",
+    description: "Search 254 cited Tennessee and federal rule cards for the dental office.",
     action: "Open the desk",
     href: "/desk",
   },
