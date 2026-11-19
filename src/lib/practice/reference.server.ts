@@ -41,7 +41,10 @@ function plainText(markdown: string, preserveSourceKeys = false) {
     .trim();
   return preserveSourceKeys
     ? text
-    : text.replace(/\s*\[S\d+(?:\s+at [^\]]+)?\]/g, "").replace(/\s+/g, " ").trim();
+    : text
+        .replace(/\s*\[S\d+(?:\s+at [^\]]+)?\]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
 function headingSections(markdown: string) {
