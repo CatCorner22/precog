@@ -288,7 +288,10 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 // the largest chunk was unchanged.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 932 * 1024,
+  // 2026-11-19: the lazy CPA transcript screen and bounded exact-value token
+  // alignment add about 5 KB gzip; the first build measures 936.4 KB. Raise
+  // only the total from 932 to 939 KB, retaining room for CI variation.
+  totalGzipBytes: 939 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

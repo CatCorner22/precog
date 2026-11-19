@@ -165,7 +165,7 @@ describe("the firm workspace's order", () => {
     expect(at(ClientList)).toBeLessThan(at(FirmMembers));
     expect(at(ClientList)).toBeLessThan(at(QuickBooksPanel));
     // Billing, members and QuickBooks sit inside one folded "Firm settings".
-    const fold = all.find((el) => el.type === "details");
+    const fold = all.find((el) => el.props.id === "firm-settings");
     expect(fold).toBeDefined();
     expect(fold!.props.open).toBe(false);
     const inside = elements(fold!.props.children);
@@ -178,6 +178,13 @@ describe("the firm workspace's order", () => {
 });
 
 describe("Add client on the firm workspace", () => {
+  it("offers the lazy transcript tool only to a signed-in account", async () => {
+    const signedIn = elements(await runtime.settle(Page));
+    expect(signedIn.some((el) => el.props.id === "transcript-check")).toBe(true);
+    state.userId = null;
+    const signedOut = elements(await runtime.settle(Page));
+    expect(signedOut.some((el) => el.props.id === "transcript-check")).toBe(false);
+  });
   it("starts the business with its name and line of business, then goes to its setup", async () => {
     practice.createBusiness.mockResolvedValue({ ok: true });
     const tree = await runtime.settle(Page);
@@ -206,7 +213,7 @@ describe("Firm settings while the account loads", () => {
     // The firm never arrives: the page stays on its first answer.
     server.getFirm.mockReturnValue(new Promise(() => undefined));
     const tree = await runtime.settle(Page);
-    const fold = elements(tree).find((el) => el.type === "details");
+    const fold = elements(tree).find((el) => el.props.id === "firm-settings");
     expect(fold).toBeDefined();
     expect(fold!.props.open).toBe(false);
     const inside = elements(fold!.props.children);
@@ -219,7 +226,7 @@ describe("Firm settings while the account loads", () => {
 
   it("offers to create the firm, open, once the account shows there is none", async () => {
     const tree = await runtime.settle(Page);
-    const fold = elements(tree).find((el) => el.type === "details")!;
+    const fold = elements(tree).find((el) => el.props.id === "firm-settings")!;
     expect(fold.props.open).toBe(true);
     const inside = elements(fold.props.children);
     expect(inside.some((el) => el.type === "form")).toBe(true);

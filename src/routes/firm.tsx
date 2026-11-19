@@ -88,6 +88,11 @@ const AssessmentSnapshots = lazy(() =>
     default: module.AssessmentSnapshots,
   })),
 );
+const TranscriptCheck = lazy(() =>
+  import("@/components/precog/firm/transcript-check").then((module) => ({
+    default: module.TranscriptCheck,
+  })),
+);
 
 const QUICKBOOKS_MESSAGE: Record<string, string> = {
   connected: "QuickBooks is connected. Read the books now to take the first reading.",
@@ -101,6 +106,7 @@ const QUICKBOOKS_MESSAGE: Record<string, string> = {
 };
 
 function FirmPage() {
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const { user, isPending } = useCurrentUserState();
   const { profile, template, replaceProfile, switchBusiness, createBusiness } = usePractice();
   const search = Route.useSearch();
@@ -500,6 +506,23 @@ function FirmPage() {
           />
         )}
       </section>
+
+      {signedIn && loaded && (
+        <details
+          id="transcript-check"
+          className="mt-4"
+          onToggle={(event) => setTranscriptOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer rounded-xl border border-border bg-surface p-4 text-lg font-semibold">
+            Interview transcript check
+          </summary>
+          {transcriptOpen && (
+            <Suspense fallback={<p role="status">Loading transcript check…</p>}>
+              <TranscriptCheck key={`${userId}:${activeId}`} />
+            </Suspense>
+          )}
+        </details>
+      )}
 
       {signedIn && (
         <details
