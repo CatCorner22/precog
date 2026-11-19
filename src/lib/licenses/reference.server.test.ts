@@ -21,6 +21,11 @@ describe("license reference loader", () => {
     }
   });
 
+  it("includes pulse oximetry guidance in the sedation reference", () => {
+    const sedation = references.find((reference) => reference.id === "dentist-sedation-permits");
+    expect(JSON.stringify(sedation?.blocks)).toContain("pulse oximetry");
+  });
+
   it("parses the treatments table with at least twenty rows", () => {
     const treatments = references.find((reference) => reference.id === "treatments");
     const table = treatments?.blocks.find((block) => block.type === "table");
