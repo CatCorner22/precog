@@ -1,5 +1,8 @@
 {
   "src/lib/compliance/cards-server.ts#searchComplianceCardsFn": "3a8fc6acee046d48318be6b7d81570d9f1cb195d0f30ff93f7335ff5f83fcc45",
+  "src/lib/evidence/reference-server.ts#getEvidenceModule": "ff1e4324cfd3054687ae76e49f6f56573b100f4affecd7d650718c9c0b178929",
+  "src/lib/evidence/reference-server.ts#listBenchmarkStudies": "56284851d7aff9ccb51c8e3880ff41a95a871f0ff74bb2761e070860731f48a7",
+  "src/lib/evidence/reference-server.ts#listEvidenceModules": "cbffe7aac28bca1f542f9fbdb934fb89249eae0cfb36430e08a7fb9999491ff7",
   "src/lib/practice/reference-server.ts#listPracticeReferenceFn": "cb883f06d1d606f29b2bc7037e5707965484190b77934caca585dfd14cec363f",
   "src/lib/practice/reference-server.ts#searchPracticeReferenceFn": "7001d5c7812d7ff7fd0f0fc9cd4fe30a6abc1fb8cfaae1f07a8fbb8c1de7a31b",
   "src/lib/precog/account-server.ts#deleteAccount": "1ef1d1b2af7c79a25443d7717538dfe8aa1ec87efe36909bfcc028e9fbe3098f",

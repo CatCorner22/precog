@@ -35,6 +35,12 @@ const modules = [
     href: "/desk",
   },
   {
+    name: "Study evaluator",
+    description: "Check study numbers, design flaws, and evidence grades.",
+    action: "Open the evaluator",
+    href: "/evidence",
+  },
+  {
     name: "Practice desk",
     description: "Operating functions, SOPs, controls, and metrics for a dental practice.",
     action: "Open the reference",
@@ -76,7 +82,7 @@ function BlakeGPTHome() {
 
       <section
         aria-label="BlakeGPT modules"
-        className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-4"
+        className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-5"
       >
         {modules.map((module) => (
           <article

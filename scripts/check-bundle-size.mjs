@@ -262,6 +262,17 @@
  * 920.8 KB gzipped in 147 chunks. The single total budget is 923 KB, the next
  * whole KB above the measured size plus 2 KB of CI variation. The largest
  * chunk stays under 118 KB.
+ *
+ * 2026-11-19: the Study evaluator adds the client-side calculators, safe
+ * Markdown renderer, benchmark grades and reference interface. The build
+ * measures 926.9 KB gzipped in 147 chunks. Raise the total budget from 923 KB
+ * to 929 KB, the next whole KB above the measurement plus 2 KB of CI
+ * variation. The reference Markdown and benchmark source remain server-only.
+ *
+ * 2026-11-19: combining the Study evaluator and Practice desk routes measures
+ * 929.4 KB gzipped in 148 chunks. Raise the total budget from 929 KB to
+ * 932 KB, the next whole KB above the measurement plus 2 KB of CI variation.
+ * The largest chunk remains below 118 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -277,7 +288,7 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 // the largest chunk was unchanged.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 923 * 1024,
+  totalGzipBytes: 932 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
