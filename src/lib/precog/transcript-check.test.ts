@@ -64,6 +64,19 @@ describe("deterministic transcript wording check", () => {
     expect(insertion.transcript.start).toBe(insertion.transcript.end);
     expect(compareTranscripts("", "Alice paid $1").map((d) => d.kind)).toEqual(["name", "amount"]);
   });
+  it("keeps complete words at both excerpt edges and marks clipped context", () => {
+    const prefix = "Outside the excerpt. " + "extraordinarilylongcontextword ".repeat(3);
+    const suffix =
+      " " + "anotherextraordinarilylongcontextword ".repeat(3) + "Outside the excerpt.";
+    const a = `${prefix}$100${suffix}`,
+      b = `${prefix}$200${suffix}`;
+    const [difference] = compareTranscripts(a, b);
+    expect(difference.transcript.snippet).toBe(
+      "… extraordinarilylongcontextword extraordinarilylongcontextword $100 anotherextraordinarilylongcontextword …",
+    );
+    expect(a.slice(difference.transcript.start, difference.transcript.end)).toBe("$100");
+    expect(compareTranscripts("Paid $100.", "Paid $200.")[0].transcript.snippet).toBe("Paid $100.");
+  });
   it("is deterministic over repeated words and never mutates input", () => {
     const a = "I said no. I said yes. Alice paid $100.",
       b = "I said yes. I said no. Alice paid $101.";

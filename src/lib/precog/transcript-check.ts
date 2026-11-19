@@ -269,15 +269,16 @@ function locate(text: string) {
       if (lines[mid] <= start) lo = mid;
       else hi = mid;
     }
+    let snippetStart = Math.max(0, start - SNIPPET_CONTEXT);
+    let snippetEnd = Math.min(text.length, end + SNIPPET_CONTEXT);
+    while (snippetStart > 0 && !/\s/u.test(text[snippetStart - 1])) snippetStart--;
+    while (snippetEnd < text.length && !/\s/u.test(text[snippetEnd])) snippetEnd++;
     return {
       start,
       end,
       line: lo + 1,
       column: start - lines[lo] + 1,
-      snippet: text.slice(
-        Math.max(0, start - SNIPPET_CONTEXT),
-        Math.min(text.length, end + SNIPPET_CONTEXT),
-      ),
+      snippet: `${snippetStart > 0 ? "… " : ""}${text.slice(snippetStart, snippetEnd).trim()}${snippetEnd < text.length ? " …" : ""}`,
     };
   };
 }
