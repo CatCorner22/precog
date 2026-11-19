@@ -71,6 +71,16 @@ const entries: LicenseReference[] = [
     blocks: [],
   },
   {
+    id: "certifications-and-specialties",
+    tabLabel: "Certifications",
+    title: "Certifications and specialties (Tennessee)",
+    status: "verified",
+    last_verified: verified,
+    review_days: 365,
+    sources: source,
+    blocks: [{ type: "heading", level: 2, text: "Orofacial pain" }],
+  },
+  {
     id: "treatments",
     tabLabel: "Who may do it",
     title: "Who may do it",
@@ -84,19 +94,21 @@ const entries: LicenseReference[] = [
 const html = renderToStaticMarkup(createElement(LicenseReferencePage, { entries }));
 
 describe("Each license page", () => {
-  it("server-renders the six tabs, disclaimer, and hidden license content", () => {
+  it("server-renders the seven tabs, disclaimer, and hidden license content", () => {
     expect(html).toContain("Each license");
-    expect(html.match(/role="tab"/g)).toHaveLength(6);
+    expect(html.match(/role="tab"/g)).toHaveLength(7);
     for (const label of [
       "Dentist",
       "Sedation permits",
       "Hygienist",
       "Registered assistant",
       "Practical assistant",
+      "Certifications",
       "Who may do it",
     ]) {
       expect(html).toContain(label);
     }
+    expect(html).toContain("Orofacial pain");
     expect(html).toContain(
       "Research aid, not legal advice. Check the cited rule before relying on it.",
     );
