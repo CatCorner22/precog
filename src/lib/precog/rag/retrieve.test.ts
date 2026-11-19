@@ -29,6 +29,17 @@ describe("KNOWLEDGE_CORPUS", () => {
 });
 
 describe("retrieveKnowledge", () => {
+  it.each([
+    ["three lines iia", "iia-three-lines"],
+    ["material weakness significant deficiency", "deficiency-severity"],
+    ["report completeness report accuracy", "cycle-it-report-quality"],
+    ["lapping cash larceny", "fraud-receipts-schemes"],
+    ["matching composite key conversion tie-out", "analytics-reconciliation-passes"],
+    ["benford digit tests assigned amounts", "analytics-benford-limits"],
+    ["suspense unapplied receipts aging", "analytics-suspense-aging"],
+  ])("retrieves missing control knowledge for %s", (query, id) => {
+    expect(retrieveKnowledge(query, { topK: 3 }).map((h) => h.chunk.id)).toContain(id);
+  });
   it("ranks hits 1..k in descending score and honours topK", () => {
     const hits = retrieveKnowledge("segregation of duties bank reconciliation", { topK: 3 });
     expect(hits.length).toBeLessThanOrEqual(3);
