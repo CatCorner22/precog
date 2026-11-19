@@ -98,6 +98,25 @@ describe("money checks 1 to 5", () => {
       ),
     ).toHaveLength(1);
   });
+  it("prioritizes the global closest pair over the first bank line", () => {
+    const bank = bankFile(["2026-11-01,10,Test,A", "2026-11-04,10,Test,B"]);
+    const books = booksFile([entry("2026-11-04", "deposit", "C")]);
+    expect(check("unmatched_bank_line", bank, books).map((f) => f.sourceRows.bank)).toEqual([[1]]);
+    expect(check("deposit_not_banked", bank, books)).toEqual([]);
+    const input = { bank, books, today };
+    expect(runChecks({ ...input, bank: { ...bank, rows: [...bank.rows].reverse() } })).toEqual(
+      runChecks(input),
+    );
+  });
+  it("uses the same global matcher to leave a competing deposit unmatched", () => {
+    const bank = bankFile(["2026-11-01,10,Test,A", "2026-11-04,10,Test,B"]);
+    const books = booksFile([
+      entry("2026-11-04", "deposit", "C"),
+      entry("2026-11-07", "deposit", "D"),
+    ]);
+    expect(check("deposit_not_banked", bank, books).map((f) => f.sourceRows.books)).toEqual([[2]]);
+    expect(check("unmatched_bank_line", bank, books).map((f) => f.sourceRows.bank)).toEqual([[1]]);
+  });
   it("flags only later duplicate payments, unless any member was reversed", () => {
     const rows = [
       entry(day(10), "payment_received", "P1"),

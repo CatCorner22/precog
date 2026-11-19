@@ -118,21 +118,18 @@ export function runChecks({
     rows.push(row);
     byAmount.set(row.amountCents, rows);
   }
+  const pairs: { line: BankRow; entry: BooksRow; distance: number }[] = [];
   for (const line of bankRows) {
-    const candidates = (byAmount.get(line.amountCents) ?? []).filter(
-      (entry) =>
-        !matchedBooks.has(entry) &&
-        entry.amountCents === line.amountCents &&
-        Math.abs(age(line.date) - age(entry.date)) <= MATCH_DAYS,
-    );
-    candidates.sort(
-      (a, b) =>
-        Math.abs(age(line.date) - age(a.date)) - Math.abs(age(line.date) - age(b.date)) ||
-        order(a, b),
-    );
-    if (candidates[0]) {
+    for (const entry of byAmount.get(line.amountCents) ?? []) {
+      const distance = Math.abs(age(line.date) - age(entry.date));
+      if (distance <= MATCH_DAYS) pairs.push({ line, entry, distance });
+    }
+  }
+  pairs.sort((a, b) => a.distance - b.distance || order(a.line, b.line) || order(a.entry, b.entry));
+  for (const { line, entry } of pairs) {
+    if (!matchedBank.has(line) && !matchedBooks.has(entry)) {
       matchedBank.add(line);
-      matchedBooks.add(candidates[0]);
+      matchedBooks.add(entry);
     }
   }
   for (const line of bankRows) {
