@@ -112,24 +112,27 @@ export function runChecks({
   };
   const matchedBank = new Set<BankRow>(),
     matchedBooks = new Set<BooksRow>();
-  const byAmount = new Map<Cents, BooksRow[]>();
+  const byAmount = new Map<Cents, Map<number, { rows: BooksRow[]; next: number }>>();
   for (const row of bookRows) {
-    const rows = byAmount.get(row.amountCents) ?? [];
-    rows.push(row);
-    byAmount.set(row.amountCents, rows);
+    const dates = byAmount.get(row.amountCents) ?? new Map();
+    const date = age(row.date);
+    const queue = dates.get(date) ?? { rows: [], next: 0 };
+    queue.rows.push(row);
+    dates.set(date, queue);
+    byAmount.set(row.amountCents, dates);
   }
-  const pairs: { line: BankRow; entry: BooksRow; distance: number }[] = [];
-  for (const line of bankRows) {
-    for (const entry of byAmount.get(line.amountCents) ?? []) {
-      const distance = Math.abs(age(line.date) - age(entry.date));
-      if (distance <= MATCH_DAYS) pairs.push({ line, entry, distance });
-    }
-  }
-  pairs.sort((a, b) => a.distance - b.distance || order(a.line, b.line) || order(a.entry, b.entry));
-  for (const { line, entry } of pairs) {
-    if (!matchedBank.has(line) && !matchedBooks.has(entry)) {
-      matchedBank.add(line);
-      matchedBooks.add(entry);
+  for (let distance = 0; distance <= MATCH_DAYS; distance++) {
+    for (const line of bankRows) {
+      if (matchedBank.has(line)) continue;
+      const dates = byAmount.get(line.amountCents);
+      for (const offset of distance === 0 ? [0] : [distance, -distance]) {
+        const queue = dates?.get(age(line.date) + offset);
+        if (queue && queue.next < queue.rows.length) {
+          matchedBank.add(line);
+          matchedBooks.add(queue.rows[queue.next++]);
+          break;
+        }
+      }
     }
   }
   for (const line of bankRows) {

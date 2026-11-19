@@ -117,6 +117,15 @@ describe("money checks 1 to 5", () => {
     expect(check("deposit_not_banked", bank, books).map((f) => f.sourceRows.books)).toEqual([[2]]);
     expect(check("unmatched_bank_line", bank, books).map((f) => f.sourceRows.bank)).toEqual([[1]]);
   });
+  it("matches 5,000 same-day, same-amount rows per file within the test timeout", () => {
+    const bank = bankFile(Array.from({ length: 5000 }, (_, i) => `${day(10)},10,Test,B${i}`));
+    const books = booksFile(
+      Array.from({ length: 5000 }, (_, i) => entry(day(10), "deposit", `D${i}`)),
+    );
+    expect(bank.rows).toHaveLength(5000);
+    expect(books.rows).toHaveLength(5000);
+    expect(runChecks({ bank, books, today, closes: [] }).findings).toEqual([]);
+  });
   it("flags only later duplicate payments, unless any member was reversed", () => {
     const rows = [
       entry(day(10), "payment_received", "P1"),
