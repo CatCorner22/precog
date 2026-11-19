@@ -3,6 +3,7 @@ import { normalizeDecisions, type PracticeProfile } from "./practice-profile";
 import { malformedList } from "./profile-entries";
 import { RequestError } from "@/lib/request-errors";
 import { DEFAULT_BUSINESS_ID, isBusinessId } from "./business-id";
+import { normalizeMoneyChecks } from "./money-checks/profile-state";
 export { isBusinessId } from "./business-id";
 
 /**
@@ -56,6 +57,9 @@ export function validateProfileInput(input: unknown): {
     ...profile,
     businessId,
     decisions: normalizeDecisions(profile.decisions),
+    ...(profile.moneyChecks !== undefined
+      ? { moneyChecks: normalizeMoneyChecks(profile.moneyChecks) }
+      : {}),
   });
   return { profile: JSON.parse(json) as PracticeProfile, businessId, json };
 }
