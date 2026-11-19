@@ -28,6 +28,8 @@ import { imageSweepNeeded } from "./procedures/image-store.server";
 import { ENGAGEMENT_ENDED } from "./firm/engagement-row";
 import { lockReportVersion } from "./firm/reports";
 import { removeMember } from "./firm/store";
+import { defaultProfile, type PracticeProfile } from "./practice-profile";
+import { validateProfileInput } from "./profile-input";
 
 /**
  * Runs against an embedded Postgres with every file in migrations/ applied, so
@@ -194,6 +196,36 @@ describe("saveBusinessRevision — compare-and-swap", () => {
 });
 
 describe("loadActiveBusiness", () => {
+  it("round-trips money-check state through the existing profile JSONB", async () => {
+    const moneyChecks = {
+      ledger: [],
+      reconciliationSignoffs: [
+        { month: "2026-10", preparedBy: "p1", signedBy: "p2", signedOn: "2026-11-01" },
+      ],
+      channelSignoffs: [
+        {
+          month: "2026-10",
+          channel: "ach" as const,
+          note: "Reviewed the channel",
+          by: "p1",
+          on: "2026-11-19",
+        },
+      ],
+    };
+    const checked = validateProfileInput({
+      ...defaultProfile("dental"),
+      businessId: "biz_money",
+      moneyChecks,
+    });
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_money", null),
+      profileJson: checked.json,
+      activate: true,
+    });
+    expect((await loadActiveBusiness<PracticeProfile>(sql, "user-a"))?.profile.moneyChecks).toEqual(
+      moneyChecks,
+    );
+  });
   it("returns null for a user with no saved business", async () => {
     expect(await loadActiveBusiness(sql, "user-a")).toBeNull();
   });

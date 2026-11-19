@@ -62,6 +62,7 @@ import type { Place, Procedure } from "./procedures/types";
 import { normalizeSetupAnswers, type SetupAnswers } from "./onboarding/setup-answers";
 import { normalizeOnboardingFacts, type OnboardingFacts } from "./onboarding/decision-model";
 import { trimDecisions } from "./decisions/trim";
+import { normalizeMoneyChecks, type MoneyChecksState } from "./money-checks/profile-state";
 
 /**
  * One business: what it is, the owner's own team, map and register (or null
@@ -78,6 +79,7 @@ export interface PracticeProfile {
   riskVariables: RiskVariableState;
   dualRelease: DualReleasePolicy;
   decisions: DecisionEntry[];
+  moneyChecks?: MoneyChecksState;
   /** False on first visit until the user picks an industry template. */
   onboardingComplete?: boolean;
   /** Organization-level setup facts; never used as mapped-team scoring inputs. */
@@ -417,6 +419,7 @@ export function normalizeProfile(
   const setupAnswers = normalizeSetupAnswers(parsed.setupAnswers);
   const setupControlsWithdrawn = normalizeSetupControlsWithdrawn(parsed.setupControlsWithdrawn);
   const onboardingFacts = normalizeOnboardingFacts(parsed.onboardingFacts);
+  const moneyChecks = normalizeMoneyChecks(parsed.moneyChecks);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
       industry,
@@ -455,6 +458,7 @@ export function normalizeProfile(
         ? parsed.onboardingComplete
         : (options.onboardingCompleteFallback ?? true),
     ...(onboardingFacts ? { onboardingFacts } : {}),
+    ...(moneyChecks ? { moneyChecks } : {}),
     customProcesses,
     customPeople,
     customKnowledge,
@@ -937,6 +941,9 @@ export function hasUserWork(profile: PracticeProfile): boolean {
     profile.customKnowledge?.length ||
     profile.customRelations?.length ||
     profile.decisions.length ||
+    profile.moneyChecks?.ledger.length ||
+    profile.moneyChecks?.reconciliationSignoffs.length ||
+    profile.moneyChecks?.channelSignoffs.length ||
     profile.mapVersions?.length ||
     profile.savedProcessBlocks?.length ||
     Object.keys(profile.mapLayout ?? {}).length ||
@@ -1138,7 +1145,13 @@ export function writePortfolioEntry(
   const stored = readStoredPortfolio(storage);
   if (stored.kind === "unreadable" && !stored.kept) return "unreadable";
   const all = stored.kind === "entries" ? stored.entries : {};
-  all[id] = { ...profile, businessId: id };
+  all[id] = {
+    ...profile,
+    businessId: id,
+    ...(profile.moneyChecks !== undefined
+      ? { moneyChecks: normalizeMoneyChecks(profile.moneyChecks) }
+      : {}),
+  };
   return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage) ? "saved" : "refused";
 }
 
