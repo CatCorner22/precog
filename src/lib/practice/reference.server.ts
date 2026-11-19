@@ -88,18 +88,27 @@ export function listPracticeSectionsFromDisk(): PracticeSection[] {
 }
 
 export function searchPracticeReferenceFromDisk(query: string): PracticeSearchResult[] {
-  const terms = query.toLocaleLowerCase("en-US").trim().split(/\s+/).filter(Boolean);
+  const normalizedQuery = query.toLocaleLowerCase("en-US").trim().replace(/\s+/g, " ");
+  const terms = normalizedQuery.split(" ").filter(Boolean);
   if (!terms.length) return [];
   return listPracticeSectionsFromDisk()
     .map((section) => {
       const content = `${section.title} ${section.text}`;
       const normalized = content.toLocaleLowerCase("en-US");
       const matches = terms.filter((term) => normalized.includes(term)).length;
-      const start = normalized.indexOf(terms[0]);
+      const normalizedBody = section.text.toLocaleLowerCase("en-US");
+      const phraseStart = normalizedBody.indexOf(normalizedQuery);
+      const firstMatchingTerm = terms.find((term) => normalizedBody.includes(term));
+      const start =
+        phraseStart >= 0
+          ? phraseStart
+          : firstMatchingTerm
+            ? normalizedBody.indexOf(firstMatchingTerm)
+            : -1;
       const excerpt =
         start < 0
-          ? content.slice(0, 240)
-          : content.slice(Math.max(0, start - 80), Math.min(content.length, start + 180));
+          ? section.text.slice(0, 240)
+          : section.text.slice(Math.max(0, start - 80), Math.min(section.text.length, start + 180));
       return { id: section.id, title: section.title, excerpt, matches };
     })
     .filter((result) => result.matches > 0)

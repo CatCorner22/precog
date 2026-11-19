@@ -25,6 +25,7 @@ describe("Practice desk reference loader", () => {
     expect(searchPracticeReferenceFromDisk("two-deep").some((result) => result.id === 50)).toBe(
       true,
     );
+    expect(searchPracticeReferenceFromDisk("Tier 2")[0]?.excerpt).toContain("Tier 2");
     expect(searchPracticeReferenceFromDisk("   ")).toEqual([]);
   });
 
