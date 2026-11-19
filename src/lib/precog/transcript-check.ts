@@ -34,8 +34,9 @@ const MONTH =
   "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?";
 const DATE = `(?:\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}|\\d{1,2}/\\d{1,2}(?:/\\d{4})?|${MONTH}\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?|\\d{1,2}(?:st|nd|rd|th)?\\s+${MONTH}(?:\\s+\\d{4})?)`;
 const NUMBER = "(?:\\d{1,3}(?:,\\d{3})+|\\d+|(?=\\.\\d))(?:\\.\\d+)?(?:[eE][+−-]?\\d+)?";
-const ACCOUNTING_AMOUNT = `\\(\\s*(?:\\p{Sc}\\s*[+−-]?${NUMBER}|[+−-]?${NUMBER}(?:\\s*\\p{Sc})?)\\s*\\)`;
-const AMOUNT = `(?:${ACCOUNTING_AMOUNT}|[+−-]?\\p{Sc}\\s*[+−-]?${NUMBER}|[+−-]?${NUMBER}(?:\\s*(?:\\p{Sc}|%|dollars?\\b|bucks\\b))?)`;
+const CURRENCY_SUFFIX = "[\\t\\p{Zs}]*\\p{Sc}(?!\\s*(?:[+−\\d-]|\\.\\d))";
+const ACCOUNTING_AMOUNT = `\\(\\s*(?:\\p{Sc}\\s*[+−-]?${NUMBER}|[+−-]?${NUMBER}(?:${CURRENCY_SUFFIX})?)\\s*\\)`;
+const AMOUNT = `(?:${ACCOUNTING_AMOUNT}|[+−-]?\\p{Sc}\\s*[+−-]?${NUMBER}|[+−-]?${NUMBER}(?:${CURRENCY_SUFFIX}|\\s*(?:%|dollars?\\b|bucks\\b))?)`;
 const LEXEMES = new RegExp(`${DATE}|${AMOUNT}|\\p{L}+(?:['’]\\p{L}+)*`, "giu");
 const DATE_ONLY = new RegExp(`^(?:${DATE})$`, "iu");
 const RELATIVE_DATES = new Set(

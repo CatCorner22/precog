@@ -37,6 +37,11 @@ describe("deterministic transcript wording check", () => {
     ["We paid 1e3.", "We paid 1000.00."],
     ["We paid €100.", "We paid 100€."],
     ["We paid €100.", "We paid 100 €."],
+    ["We paid €100.", "We paid 100\t€."],
+    ["Invoice 1\n$100", "Invoice 1: $100"],
+    ["Invoice 1 $100", "Invoice 1: $100"],
+    ["Invoice 1 $-100", "Invoice 1: $-100"],
+    ["Invoice 1 $ .50", "Invoice 1: $ .50"],
     ["We paid (100).", "We paid -100."],
     ["We paid ($100).", "We paid -$100."],
     ["We paid (100 €).", "We paid -€100."],
@@ -55,6 +60,20 @@ describe("deterministic transcript wording check", () => {
       "Alice paid $200; Bob paid $100.",
     );
     expect(result.filter((d) => d.kind === "amount")).toHaveLength(2);
+  });
+  it("does not transfer a following amount's currency across a line break", () => {
+    const a = "We paid 100\n€200",
+      b = "We paid €100\n200";
+    const amounts = compareTranscripts(a, b).filter((d) => d.kind === "amount");
+    expect(amounts).toHaveLength(2);
+    expect(amounts.map((d) => a.slice(d.transcript.start, d.transcript.end))).toEqual([
+      "100",
+      "€200",
+    ]);
+    expect(amounts.map((d) => b.slice(d.reference.start, d.reference.end))).toEqual([
+      "€100",
+      "200",
+    ]);
   });
   it("retains raw excerpts, exact offsets, line/column and empty insertion points", () => {
     const a = "First line.\nI paid $100 to Alice.",
