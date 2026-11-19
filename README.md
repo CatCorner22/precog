@@ -155,6 +155,11 @@ so refresh, back, and shared links keep the view.
 
 The “If a control fails” view in What could happen compares a safeguard or control as recorded today with the same item switched off, or switched on when it is missing. It reuses Precog’s scenario, residual-risk and duty-conflict engines and shows related processes and real cases. This is a what-if only; it does not change or save the business profile.
 
+## Money checks
+
+See [`docs/MONEY_CHECKS.md`](docs/MONEY_CHECKS.md) for the Phase 1 implementation
+record, exact advisory thresholds, related tools, merge order and gated Phase 2 plan.
+
 ## Control evidence log
 
 On Monthly review, signed-in users can record a monthly check with its scope,
