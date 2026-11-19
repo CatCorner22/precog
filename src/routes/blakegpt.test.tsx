@@ -38,15 +38,20 @@ describe("BlakeGPT home", () => {
     expect(html).toContain("Welcome, Amanda. Your practice has a clear place to begin.");
   });
 
-  it("offers the three modules and resolves Frontier GRC to Voyager's real tab", () => {
+  it("offers four modules and resolves Frontier GRC to Voyager's real tab", () => {
     expect(html).toContain("Internal controls and continuity for the practice.");
     expect(html).toContain(
       "Checks for invoices, notice deadlines, duty conflicts and policy wording.",
     );
     expect(html).toContain("Cited Tennessee and federal rules for the dental office.");
+    expect(html).toContain(
+      "Operating functions, SOPs, controls, and metrics for a dental practice.",
+    );
     expect(html).toMatch(/href="\/"[^>]*>Open Precog<\/a>/);
     expect(html).toMatch(/href="\/\?tab=pioneer"[^>]*>Open checks<\/a>/);
     expect(html).toMatch(/href="\/desk"[^>]*>Open the desk<\/a>/);
+    expect(html).toMatch(/href="\/practice"[^>]*>Open the reference<\/a>/);
+    expect(html.match(/<article\b/g)).toHaveLength(4);
   });
 
   it("uses Reverie's unaltered hero art and a phone-to-desktop card grid", () => {
@@ -54,6 +59,6 @@ describe("BlakeGPT home", () => {
       '<img src="/reverie/reverie-friendly-face.webp" alt="Reverie smiles in welcome." width="512" height="512"',
     );
     expect(html).toContain('aria-label="BlakeGPT modules"');
-    expect(html).toContain("lg:grid-cols-3");
+    expect(html).toContain("lg:grid-cols-4");
   });
 });

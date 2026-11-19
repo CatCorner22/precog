@@ -15,6 +15,7 @@ import { Route as DeskRouteImport } from './routes/desk'
 import { Route as FirmRouteImport } from './routes/firm'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OperatorRouteImport } from './routes/operator'
+import { Route as PracticeRouteImport } from './routes/practice'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
@@ -64,6 +65,11 @@ const LoginRoute = LoginRouteImport.update({
 const OperatorRoute = OperatorRouteImport.update({
   id: '/operator',
   path: '/operator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PracticeRoute = PracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
   '/operator': typeof OperatorRoute
+  '/practice': typeof PracticeRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -203,6 +210,7 @@ export interface FileRoutesByTo {
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
   '/operator': typeof OperatorRoute
+  '/practice': typeof PracticeRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -232,6 +240,7 @@ export interface FileRoutesById {
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
   '/operator': typeof OperatorRoute
+  '/practice': typeof PracticeRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -262,6 +271,7 @@ export interface FileRouteTypes {
     | '/firm'
     | '/login'
     | '/operator'
+    | '/practice'
     | '/pricing'
     | '/privacy'
     | '/report'
@@ -290,6 +300,7 @@ export interface FileRouteTypes {
     | '/firm'
     | '/login'
     | '/operator'
+    | '/practice'
     | '/pricing'
     | '/privacy'
     | '/report'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/firm'
     | '/login'
     | '/operator'
+    | '/practice'
     | '/pricing'
     | '/privacy'
     | '/report'
@@ -347,6 +359,7 @@ export interface RootRouteChildren {
   FirmRoute: typeof FirmRoute
   LoginRoute: typeof LoginRoute
   OperatorRoute: typeof OperatorRoute
+  PracticeRoute: typeof PracticeRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   ReportRoute: typeof ReportRoute
@@ -411,6 +424,13 @@ declare module '@tanstack/react-router' {
       path: '/operator'
       fullPath: '/operator'
       preLoaderRoute: typeof OperatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practice': {
+      id: '/practice'
+      path: '/practice'
+      fullPath: '/practice'
+      preLoaderRoute: typeof PracticeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -563,6 +583,7 @@ const rootRouteChildren: RootRouteChildren = {
   FirmRoute: FirmRoute,
   LoginRoute: LoginRoute,
   OperatorRoute: OperatorRoute,
+  PracticeRoute: PracticeRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   ReportRoute: ReportRoute,

@@ -34,6 +34,12 @@ const modules = [
     action: "Open the desk",
     href: "/desk",
   },
+  {
+    name: "Practice desk",
+    description: "Operating functions, SOPs, controls, and metrics for a dental practice.",
+    action: "Open the reference",
+    href: "/practice",
+  },
 ];
 
 function BlakeGPTHome() {
@@ -70,7 +76,7 @@ function BlakeGPTHome() {
 
       <section
         aria-label="BlakeGPT modules"
-        className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-3"
+        className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-4"
       >
         {modules.map((module) => (
           <article
