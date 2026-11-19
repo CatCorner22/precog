@@ -47,6 +47,14 @@ function plainText(markdown: string, preserveSourceKeys = false) {
         .trim();
 }
 
+function indexKeywords(markdown: string) {
+  return [...markdown.matchAll(/{{index:\s*([^}]+)}}/g)]
+    .flatMap(([, terms]) => terms.split("|").flatMap((term) => term.split(/;|see also:/i)))
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .join(" | ");
+}
+
 function headingSections(markdown: string) {
   const headings = [...markdown.matchAll(/^## \[(\d+)\] (.+)$/gm)];
   return headings.map((heading, index) => {
@@ -92,6 +100,7 @@ export function listPracticeSectionsFromDisk(): PracticeSection[] {
       id,
       title,
       text: plainText(body, id === 90),
+      keywords: indexKeywords(body),
     }));
 }
 
@@ -121,11 +130,12 @@ export function searchPracticeReferenceFromDisk(query: string): PracticeSearchRe
   return listPracticeSectionsFromDisk()
     .map((section) => {
       const normalizedTitle = section.title.toLocaleLowerCase("en-US");
-      const content = `${section.title} ${section.text}`;
+      const content = `${section.title} ${section.text} ${section.keywords}`;
       const normalized = content.toLocaleLowerCase("en-US");
       const normalizedBody = section.text.toLocaleLowerCase("en-US");
+      const searchableBody = `${section.text} ${section.keywords}`.toLocaleLowerCase("en-US");
       const titlePhraseMatch = normalizedTitle.includes(normalizedQuery);
-      const bodyPhraseMatch = normalizedBody.includes(normalizedQuery);
+      const bodyPhraseMatch = searchableBody.includes(normalizedQuery);
       const allTermsInTitle = searchTerms.every((term) => normalizedTitle.includes(term));
       const matches = searchTerms.filter((term) => normalized.includes(term)).length;
       const phraseStart = normalizedBody.indexOf(normalizedQuery);

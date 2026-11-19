@@ -11,6 +11,7 @@ export interface PracticeSection {
   id: number;
   title: string;
   text: string;
+  keywords: string;
 }
 
 export interface PracticeSearchResult {

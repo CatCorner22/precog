@@ -41,6 +41,15 @@ describe("Practice desk reference loader", () => {
     expect(searchPracticeReferenceFromDisk("SOP")[0]?.id).toBe(40);
   });
 
+  it("searches index aliases without exposing them in section text or excerpts", () => {
+    const section = listPracticeSectionsFromDisk().find(({ id }) => id === 30);
+    const result = searchPracticeReferenceFromDisk("detectability")[0];
+    expect(section?.keywords).toContain("detectability");
+    expect(section?.text).not.toContain("detectability");
+    expect(result?.id).toBe(30);
+    expect(result?.excerpt).not.toContain("detectability");
+  });
+
   it("keeps practice-specific location names out of bundled Practice knowledge", () => {
     const privateLocationPattern = new RegExp(["corner", "stone|knox", "ville"].join(""), "i");
     expect(readPracticeKnowledgeFromDisk()).not.toMatch(privateLocationPattern);
