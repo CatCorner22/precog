@@ -1,0 +1,3676 @@
+{
+  "schemaVersion": "1.0",
+  "reviewedAt": "2026-11-13",
+  "studies": [
+    {
+      "id": "doi:10.1056/NEJMoa012512",
+      "record": {
+        "id": "doi:10.1056/NEJMoa012512",
+        "recordKind": "benchmark",
+        "title": "Reduction in the Incidence of Type 2 Diabetes with Lifestyle Intervention or Metformin",
+        "authors": [
+          "Diabetes Prevention Program Research Group"
+        ],
+        "publicationDate": "2002-02-07",
+        "doi": "10.1056/NEJMoa012512",
+        "pmid": "11832527",
+        "registryId": null,
+        "registryVerification": "not verified",
+        "reviewedAt": "2026-11-13",
+        "reviewStatus": "provisional; aggregate publication review",
+        "version": 1,
+        "keywords": [
+          "diabetes prevention",
+          "metformin",
+          "lifestyle",
+          "randomized trial",
+          "absolute risk",
+          "NNT"
+        ],
+        "geography": "United States",
+        "design": "Three-group randomized trial; drug comparison masked, lifestyle unmasked.",
+        "population": {
+          "n": 3234,
+          "condition": "Nondiabetic adults with elevated fasting and postload glucose",
+          "meanAge": 51,
+          "meanBMI": 34
+        },
+        "purpose": "Test prevention or delay of diabetes.",
+        "authorClaims": [
+          "Both interventions reduced diabetes incidence; lifestyle was more effective."
+        ],
+        "comparators": {
+          "baseline": "Measured; Table 1",
+          "placebo": "Metformin versus placebo plus standard lifestyle advice",
+          "sham": "Not applicable to pill comparison; lifestyle attention sham absent",
+          "active": "Intensive lifestyle versus metformin",
+          "interpretation": "Baseline is descriptive/contextual, not an independent concurrent counterfactual."
+        },
+        "arms": [
+          {
+            "name": "placebo",
+            "n": 1082
+          },
+          {
+            "name": "metformin 850 mg twice daily",
+            "n": 1073
+          },
+          {
+            "name": "intensive lifestyle",
+            "n": 1079
+          }
+        ],
+        "outcomes": {
+          "outcome": "diabetes diagnosis",
+          "meanFollowupYears": 2.8,
+          "horizonYears": 3,
+          "cumulativeRisks": {
+            "placebo": 0.289,
+            "metformin": 0.217,
+            "lifestyle": 0.144
+          },
+          "incidencePer100PersonYears": {
+            "placebo": 11.0,
+            "metformin": 7.8,
+            "lifestyle": 4.8
+          },
+          "publishedRelativeIncidenceReduction": {
+            "lifestyle": {
+              "estimate": 0.58,
+              "ci95": [
+                0.48,
+                0.66
+              ]
+            },
+            "metformin": {
+              "estimate": 0.31,
+              "ci95": [
+                0.17,
+                0.43
+              ]
+            }
+          },
+          "locator": "Results, Incidence of Diabetes; Figure 2 and Table 2"
+        },
+        "reanalysis": [
+          {
+            "contrast": "lifestyle versus placebo",
+            "estimand": "difference/ratio of estimated three-year cumulative risks",
+            "ARR": 0.145,
+            "RR": 0.4982698962,
+            "RRR": 0.5017301038,
+            "NNTPoint": 6.8965517241,
+            "eventsAvoidedPer1000": 145,
+            "calculation": "0.289 - 0.144; 0.144 / 0.289; 1 / 0.145"
+          },
+          {
+            "contrast": "metformin versus placebo",
+            "estimand": "difference/ratio of estimated three-year cumulative risks",
+            "ARR": 0.072,
+            "RR": 0.7508650519,
+            "RRR": 0.2491349481,
+            "NNTPoint": 13.8888888889,
+            "eventsAvoidedPer1000": 72,
+            "calculation": "0.289 - 0.217; 0.217 / 0.289; 1 / 0.072"
+          }
+        ],
+        "analysisLimits": [
+          "Rounded survival probabilities; point estimates only. No independently reconstructed CI.",
+          "Published 58%/31% reductions and three-year risk ratios have different estimands; do not substitute.",
+          "No participant data: no independent survival model, missing-data analysis, or causal adherence adjustment."
+        ],
+        "grades": {
+          "design": {
+            "grade": "B",
+            "rationale": "Useful concurrent randomized comparisons; lifestyle contrast bundles behavior and attention.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Test prevention or delay of diabetes.",
+            "evidenceDepth": "{\"primary\": \"abstract, initial methods, publisher-indexed results; not complete full-text review\", \"citationDepth\": 1, \"citationStatus\": \"body citation verified; bibliography identity partly unresolved\"}",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Absolute and relative results available; full protocol/SAP and complete report not inspected.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Test prevention or delay of diabetes.",
+            "evidenceDepth": "{\"primary\": \"abstract, initial methods, publisher-indexed results; not complete full-text review\", \"citationDepth\": 1, \"citationStatus\": \"body citation verified; bibliography identity partly unresolved\"}",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "B",
+            "rationale": "Supports the studied follow-up; permanent prevention and cardiovascular benefit remain separate questions.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Test prevention or delay of diabetes.",
+            "evidenceDepth": "{\"primary\": \"abstract, initial methods, publisher-indexed results; not complete full-text review\", \"citationDepth\": 1, \"citationStatus\": \"body citation verified; bibliography identity partly unresolved\"}",
+            "provisional": true
+          }
+        },
+        "benchmarkDimension": "Concurrent pharmacologic, behavioral, and placebo comparisons; horizon-specific absolute benefit.",
+        "evidence_depth": {
+          "primary": "abstract, initial methods, publisher-indexed results; not complete full-text review",
+          "citationDepth": 1,
+          "citationStatus": "body citation verified; bibliography identity partly unresolved"
+        },
+        "sourceIds": [
+          "dpp-primary",
+          "dpp-pubmed"
+        ],
+        "followup": [
+          "Retrieve complete report/protocol/SAP and verify ref 8 bibliography.",
+          "Review later follow-up separately; do not overwrite original estimand."
+        ],
+        "authorsClaims": [
+          "Both interventions reduced diabetes incidence; lifestyle was more effective."
+        ],
+        "identifiers": {
+          "doi": "10.1056/NEJMoa012512",
+          "pmid": "11832527"
+        },
+        "rubricVersion": "1.0",
+        "evidenceDepth": "{\"primary\": \"abstract, initial methods, publisher-indexed results; not complete full-text review\", \"citationDepth\": 1, \"citationStatus\": \"body citation verified; bibliography identity partly unresolved\"}",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "doi:10.1001/jama.288.23.2981",
+      "record": {
+        "id": "doi:10.1001/jama.288.23.2981",
+        "recordKind": "benchmark",
+        "title": "Major Outcomes in High-Risk Hypertensive Patients Randomized to Angiotensin-Converting Enzyme Inhibitor or Calcium Channel Blocker vs Diuretic: The Antihypertensive and Lipid-Lowering Treatment to Prevent Heart Attack Trial (ALLHAT)",
+        "authors": [
+          "The ALLHAT Officers and Coordinators for the ALLHAT Collaborative Research Group"
+        ],
+        "publicationDate": "2002-12-18",
+        "doi": "10.1001/jama.288.23.2981",
+        "pmid": "12479763",
+        "registryId": null,
+        "registryVerification": "not verified",
+        "reviewedAt": "2026-11-13",
+        "reviewStatus": "provisional; aggregate publication review",
+        "version": 1,
+        "keywords": [
+          "hypertension",
+          "active comparator",
+          "chlorthalidone",
+          "amlodipine",
+          "lisinopril",
+          "clinical outcomes"
+        ],
+        "geography": "North America, including United States; not exclusively U.S.",
+        "design": "Double-blind randomized active-controlled trial; central concealed allocation.",
+        "population": {
+          "n": 33357,
+          "ageMinimum": 55,
+          "condition": "Hypertension plus another coronary risk factor"
+        },
+        "purpose": "Compare first-step antihypertensive strategies.",
+        "authorClaims": [
+          "Thiazide-type therapy preferred on cardiovascular outcomes and cost."
+        ],
+        "comparators": {
+          "baseline": "Table 1",
+          "placebo": "Absent; active-treatment question",
+          "sham": "No sham-treatment arm",
+          "active": "Chlorthalidone reference",
+          "interpretation": "Baseline is descriptive/contextual, not an independent concurrent counterfactual."
+        },
+        "arms": [
+          {
+            "name": "chlorthalidone",
+            "n": 15255
+          },
+          {
+            "name": "amlodipine",
+            "n": 9048
+          },
+          {
+            "name": "lisinopril",
+            "n": 9054
+          }
+        ],
+        "outcomes": {
+          "primary": "fatal CHD or nonfatal myocardial infarction",
+          "meanFollowupYears": 4.9,
+          "horizonYears": 6,
+          "primaryCumulativeRisks": {
+            "chlorthalidone": 0.115,
+            "amlodipine": 0.113,
+            "lisinopril": 0.114
+          },
+          "primaryHazardRatios": {
+            "amlodipine": {
+              "estimate": 0.98,
+              "ci95": [
+                0.9,
+                1.07
+              ]
+            },
+            "lisinopril": {
+              "estimate": 0.99,
+              "ci95": [
+                0.91,
+                1.08
+              ]
+            }
+          },
+          "secondaryHF": {
+            "chlorthalidoneRisk": 0.077,
+            "amlodipineRisk": 0.102,
+            "amlodipineHazardRatio": 1.38,
+            "ci95": [
+              1.25,
+              1.52
+            ]
+          },
+          "locator": "Statistical Methods; Table 5"
+        },
+        "reanalysis": [
+          {
+            "contrast": "amlodipine versus chlorthalidone",
+            "outcome": "heart failure",
+            "horizonYears": 6,
+            "riskDifference": 0.025,
+            "extraEventsPer1000": 25,
+            "calculation": ".102 - .077",
+            "ci": "not reconstructed"
+          }
+        ],
+        "analysisLimits": [
+          "The publication calls Cox hazard ratios relative risks; preserve the underlying model. Table 5 marks exceptions for lisinopril heart failure when proportional hazards failed.",
+          "Kaplan-Meier six-year percentages differ from crude events/randomized n.",
+          "Primary nonsignificance is not equivalence. Secondary benefit cannot establish primary-endpoint superiority."
+        ],
+        "grades": {
+          "design": {
+            "grade": "A",
+            "rationale": "Strong active-comparator allocation and clinically important endpoints; grades concern reported design.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Compare first-step antihypertensive strategies.",
+            "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 1, \"target\": \"design report abstract\"}",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Transparent estimates; treatment changes and multiplicity complicate interpretation.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Compare first-step antihypertensive strategies.",
+            "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 1, \"target\": \"design report abstract\"}",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "B",
+            "rationale": "Broad first-line recommendation exceeds a primary-superiority statement; interpret secondary outcomes separately.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Compare first-step antihypertensive strategies.",
+            "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 1, \"target\": \"design report abstract\"}",
+            "provisional": true
+          }
+        },
+        "benchmarkDimension": "Comparative effectiveness using hard endpoints and an effective active control.",
+        "corrections": [
+          {
+            "sourceId": "allhat-correction-2003",
+            "scope": "Table 6 cause-specific mortality replaced; notice says main findings unchanged.",
+            "status": "reviewed; retain correction alongside original"
+          }
+        ],
+        "evidence_depth": {
+          "primary": "full report methods/results/discussion/references",
+          "citationDepth": 1,
+          "target": "design report abstract"
+        },
+        "sourceIds": [
+          "allhat-primary",
+          "allhat-correction-2003"
+        ],
+        "followup": [
+          "Obtain original protocol/SAP and complete design report.",
+          "Distinguish contemporary recommendations from this historical comparison."
+        ],
+        "authorsClaims": [
+          "Thiazide-type therapy preferred on cardiovascular outcomes and cost."
+        ],
+        "identifiers": {
+          "doi": "10.1001/jama.288.23.2981",
+          "pmid": "12479763"
+        },
+        "rubricVersion": "1.0",
+        "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 1, \"target\": \"design report abstract\"}",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "doi:10.1001/jama.288.3.321",
+      "record": {
+        "id": "doi:10.1001/jama.288.3.321",
+        "recordKind": "benchmark",
+        "title": "Risks and Benefits of Estrogen Plus Progestin in Healthy Postmenopausal Women: Principal Results From the Women's Health Initiative Randomized Controlled Trial",
+        "authors": [
+          "Writing Group for the Women's Health Initiative Investigators"
+        ],
+        "publicationDate": "2002-07-17",
+        "doi": "10.1001/jama.288.3.321",
+        "pmid": "12117397",
+        "registryId": null,
+        "registryVerification": "not verified",
+        "reviewedAt": "2026-11-13",
+        "reviewStatus": "provisional; aggregate publication review",
+        "version": 1,
+        "keywords": [
+          "hormone therapy",
+          "primary prevention",
+          "placebo",
+          "harms",
+          "hazard ratio",
+          "surrogate endpoints"
+        ],
+        "geography": "United States",
+        "design": "Randomized double-blind placebo-controlled trial.",
+        "population": {
+          "n": 16608,
+          "ageRange": [
+            50,
+            79
+          ],
+          "condition": "Postmenopausal women with intact uterus"
+        },
+        "purpose": "Evaluate chronic-disease prevention benefits and harms.",
+        "authorClaims": [
+          "Overall risks exceeded benefits for this preventive regimen."
+        ],
+        "comparators": {
+          "baseline": "Table 1",
+          "placebo": "Matching placebo",
+          "sham": "Not applicable to pill comparison",
+          "active": "No alternative hormone regimen",
+          "interpretation": "Baseline is descriptive/contextual, not an independent concurrent counterfactual."
+        },
+        "arms": [
+          {
+            "name": "CEE 0.625 mg plus MPA 2.5 mg daily",
+            "n": 8506
+          },
+          {
+            "name": "placebo",
+            "n": 8102
+          }
+        ],
+        "outcomes": {
+          "primary": "CHD",
+          "meanFollowupYears": 5.2,
+          "plannedFollowupYears": 8.5,
+          "CHDHazardRatio": 1.29,
+          "CHDNominalCI95": [
+            1.02,
+            1.63
+          ],
+          "absoluteExcessCHDPer10000PersonYears": 7,
+          "absoluteExcessGlobalIndexPer10000PersonYears": 19,
+          "allCauseMortalityHazardRatio": 0.98,
+          "allCauseMortalityCI95": [
+            0.82,
+            1.18
+          ],
+          "locator": "Abstract; Tables 2–4; Figure 3"
+        },
+        "reanalysis": [
+          {
+            "contrast": "estrogen plus progestin versus placebo",
+            "outcome": "CHD",
+            "rateDifferencePer1000PersonYears": 0.7,
+            "calculation": "7 / 10",
+            "riskDifference": null,
+            "NNTorNNH": null,
+            "reason": "A person-time rate difference does not identify fixed-horizon cumulative risk."
+          }
+        ],
+        "analysisLimits": [
+          "Early stopping, nonadherence, and some clinical unmasking require outcome-specific review.",
+          "Nominal intervals are not multiplicity-adjusted intervals.",
+          "HR 1.29 is not a 29-percentage-point increase; nonsignificant mortality is not proof of equivalence.",
+          "Do not generalize one formulation and prevention indication to all menopause treatment."
+        ],
+        "grades": {
+          "design": {
+            "grade": "A",
+            "rationale": "Concurrent randomized masking and prospective benefit–harm assessment are strong reported features.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Evaluate chronic-disease prevention benefits and harms.",
+            "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 2, \"target\": \"HERS full report; PEPI abstract\"}",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Early report, incomplete central adjudication, and multiplicity limit precision of some claims.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Evaluate chronic-disease prevention benefits and harms.",
+            "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 2, \"target\": \"HERS full report; PEPI abstract\"}",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "B",
+            "rationale": "Strongest within this regimen, population, and preventive purpose; broader generalization unwarranted.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Evaluate chronic-disease prevention benefits and harms.",
+            "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 2, \"target\": \"HERS full report; PEPI abstract\"}",
+            "provisional": true
+          }
+        },
+        "benchmarkDimension": "Clinical benefits and harms can overturn inference from favorable biological surrogates.",
+        "evidence_depth": {
+          "primary": "full report methods/results/discussion/references",
+          "citationDepth": 2,
+          "target": "HERS full report; PEPI abstract"
+        },
+        "sourceIds": [
+          "whi-primary"
+        ],
+        "followup": [
+          "Review protocol/SAP, later adjudication, and follow-up as linked publications.",
+          "Search correction/retraction notices before new substantive use."
+        ],
+        "authorsClaims": [
+          "Overall risks exceeded benefits for this preventive regimen."
+        ],
+        "identifiers": {
+          "doi": "10.1001/jama.288.3.321",
+          "pmid": "12117397"
+        },
+        "rubricVersion": "1.0",
+        "evidenceDepth": "{\"primary\": \"full report methods/results/discussion/references\", \"citationDepth\": 2, \"target\": \"HERS full report; PEPI abstract\"}",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "doi:10.1056/NEJM200105033441801",
+      "record": {
+        "id": "doi:10.1056/NEJM200105033441801",
+        "recordKind": "citation-source",
+        "title": "Prevention of Type 2 Diabetes Mellitus by Changes in Lifestyle among Subjects with Impaired Glucose Tolerance",
+        "authors": [
+          "J. Tuomilehto",
+          "J. Lindström",
+          "J. G. Eriksson",
+          "Finnish Diabetes Prevention Study Group"
+        ],
+        "publicationDate": "2001-05-03",
+        "doi": "10.1056/NEJM200105033441801",
+        "pmid": "11333990",
+        "registryId": null,
+        "registryVerification": "not verified",
+        "reviewedAt": "2026-11-13",
+        "reviewStatus": "provisional; aggregate publication review",
+        "version": 1,
+        "keywords": [
+          "lifestyle",
+          "diabetes prevention",
+          "Finnish DPS"
+        ],
+        "geography": "Finland; contextual source outside U.S. scope",
+        "purpose": "Test lifestyle-based diabetes prevention.",
+        "authorClaims": [
+          "Lifestyle intervention reduced diabetes incidence among high-risk participants."
+        ],
+        "design": "Randomized lifestyle comparison.",
+        "population": {
+          "n": 522
+        },
+        "evidence_depth": {
+          "primary": "original abstract and metadata",
+          "citationDepth": 0
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Abstract-only source check; formal appraisal pending.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Test lifestyle-based diabetes prevention.",
+            "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Abstract-only source check; formal appraisal pending.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Test lifestyle-based diabetes prevention.",
+            "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Abstract-only source check; formal appraisal pending.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Test lifestyle-based diabetes prevention.",
+            "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          }
+        },
+        "sourceIds": [
+          "finnish-dps-primary"
+        ],
+        "authorsClaims": [
+          "Lifestyle intervention reduced diabetes incidence among high-risk participants."
+        ],
+        "identifiers": {
+          "doi": "10.1056/NEJM200105033441801",
+          "pmid": "11333990"
+        },
+        "rubricVersion": "1.0",
+        "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "doi:10.1016/0895-7061(96)00037-4",
+      "record": {
+        "id": "doi:10.1016/0895-7061(96)00037-4",
+        "recordKind": "citation-source",
+        "title": "Rationale and Design for the Antihypertensive and Lipid Lowering Treatment to Prevent Heart Attack Trial (ALLHAT)",
+        "authors": [
+          "B. R. Davis",
+          "J. A. Cutler",
+          "D. J. Gordon",
+          "ALLHAT Research Group"
+        ],
+        "publicationDate": "1996-04",
+        "doi": "10.1016/0895-7061(96)00037-4",
+        "pmid": "8722437",
+        "registryId": null,
+        "registryVerification": "not verified",
+        "reviewedAt": "2026-11-13",
+        "reviewStatus": "provisional; aggregate publication review",
+        "version": 1,
+        "keywords": [
+          "ALLHAT",
+          "design",
+          "protocol"
+        ],
+        "purpose": "Describe planned comparative antihypertensive trial.",
+        "authorClaims": [
+          "Clinical outcomes can test newer drug strategies against a diuretic."
+        ],
+        "design": "Design/rationale publication; original four-arm plan.",
+        "evidence_depth": {
+          "primary": "abstract and metadata",
+          "citationDepth": 0
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Design source checked; full methods not appraised.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Describe planned comparative antihypertensive trial.",
+            "evidenceDepth": "{\"primary\": \"abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Design source checked; full methods not appraised.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Describe planned comparative antihypertensive trial.",
+            "evidenceDepth": "{\"primary\": \"abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Design source checked; full methods not appraised.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Describe planned comparative antihypertensive trial.",
+            "evidenceDepth": "{\"primary\": \"abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          }
+        },
+        "sourceIds": [
+          "allhat-design-primary"
+        ],
+        "authorsClaims": [
+          "Clinical outcomes can test newer drug strategies against a diuretic."
+        ],
+        "identifiers": {
+          "doi": "10.1016/0895-7061(96)00037-4",
+          "pmid": "8722437"
+        },
+        "rubricVersion": "1.0",
+        "evidenceDepth": "{\"primary\": \"abstract and metadata\", \"citationDepth\": 0}",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "doi:10.1001/jama.280.7.605",
+      "record": {
+        "id": "doi:10.1001/jama.280.7.605",
+        "recordKind": "citation-source",
+        "title": "Randomized Trial of Estrogen Plus Progestin for Secondary Prevention of Coronary Heart Disease in Postmenopausal Women",
+        "authors": [
+          "S. Hulley",
+          "D. Grady",
+          "T. Bush",
+          "C. Furberg",
+          "D. Herrington",
+          "B. Riggs",
+          "E. Vittinghoff",
+          "HERS Research Group"
+        ],
+        "publicationDate": "1998-08-19",
+        "doi": "10.1001/jama.280.7.605",
+        "pmid": "9718051",
+        "registryId": null,
+        "registryVerification": "not verified",
+        "reviewedAt": "2026-11-13",
+        "reviewStatus": "provisional; aggregate publication review",
+        "version": 1,
+        "keywords": [
+          "HERS",
+          "secondary prevention",
+          "hormone therapy"
+        ],
+        "geography": "United States",
+        "purpose": "Assess secondary coronary prevention.",
+        "authorClaims": [
+          "No overall coronary benefit during the trial."
+        ],
+        "design": "Randomized placebo-controlled trial.",
+        "population": {
+          "n": 2763,
+          "condition": "Postmenopausal women with established coronary disease"
+        },
+        "evidence_depth": {
+          "primary": "full-text sections supporting citation claims",
+          "citationDepth": 1
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Citation claim checked; complete endpoint-level appraisal pending.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Assess secondary coronary prevention.",
+            "evidenceDepth": "{\"primary\": \"full-text sections supporting citation claims\", \"citationDepth\": 1}",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Citation claim checked; complete endpoint-level appraisal pending.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Assess secondary coronary prevention.",
+            "evidenceDepth": "{\"primary\": \"full-text sections supporting citation claims\", \"citationDepth\": 1}",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Citation claim checked; complete endpoint-level appraisal pending.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Assess secondary coronary prevention.",
+            "evidenceDepth": "{\"primary\": \"full-text sections supporting citation claims\", \"citationDepth\": 1}",
+            "provisional": true
+          }
+        },
+        "sourceIds": [
+          "hers-primary"
+        ],
+        "authorsClaims": [
+          "No overall coronary benefit during the trial."
+        ],
+        "identifiers": {
+          "doi": "10.1001/jama.280.7.605",
+          "pmid": "9718051"
+        },
+        "rubricVersion": "1.0",
+        "evidenceDepth": "{\"primary\": \"full-text sections supporting citation claims\", \"citationDepth\": 1}",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "doi:10.1001/jama.1995.03520270033028",
+      "record": {
+        "id": "doi:10.1001/jama.1995.03520270033028",
+        "recordKind": "citation-source",
+        "title": "Effects of Estrogen or Estrogen/Progestin Regimens on Heart Disease Risk Factors in Postmenopausal Women: The Postmenopausal Estrogen/Progestin Interventions (PEPI) Trial",
+        "authors": [
+          "The Writing Group for the PEPI Trial"
+        ],
+        "publicationDate": "1995-01-18",
+        "doi": "10.1001/jama.1995.03520270033028",
+        "pmid": "7807658",
+        "registryId": null,
+        "registryVerification": "not verified",
+        "reviewedAt": "2026-11-13",
+        "reviewStatus": "provisional; aggregate publication review",
+        "version": 1,
+        "keywords": [
+          "PEPI",
+          "HDL",
+          "surrogate endpoint",
+          "progestin"
+        ],
+        "geography": "United States",
+        "purpose": "Compare hormone effects on coronary risk factors.",
+        "authorClaims": [
+          "Hormone regimens differed in their effects on HDL."
+        ],
+        "design": "Five-arm randomized masked trial with placebo.",
+        "population": {
+          "n": 875
+        },
+        "evidence_depth": {
+          "primary": "original abstract and metadata",
+          "citationDepth": 0
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Abstract-only citation check; erratum needs review.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Compare hormone effects on coronary risk factors.",
+            "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Abstract-only citation check; erratum needs review.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Compare hormone effects on coronary risk factors.",
+            "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Abstract-only citation check; erratum needs review.",
+            "status": "provisional",
+            "instrument": "project rubric; not a completed formal RoB assessment",
+            "scope": "Compare hormone effects on coronary risk factors.",
+            "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+            "provisional": true
+          }
+        },
+        "corrections": [
+          {
+            "citation": "JAMA. 1995;274(21):1676",
+            "status": "listed in PubMed; contents not reviewed"
+          }
+        ],
+        "sourceIds": [
+          "pepi-primary"
+        ],
+        "authorsClaims": [
+          "Hormone regimens differed in their effects on HDL."
+        ],
+        "identifiers": {
+          "doi": "10.1001/jama.1995.03520270033028",
+          "pmid": "7807658"
+        },
+        "rubricVersion": "1.0",
+        "evidenceDepth": "{\"primary\": \"original abstract and metadata\", \"citationDepth\": 0}",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "catie-2005",
+      "record": {
+        "id": "catie-2005",
+        "benchmark": true,
+        "title": "Effectiveness of Antipsychotic Drugs in Patients with Chronic Schizophrenia",
+        "authors": [
+          "Jeffrey A. Lieberman",
+          "T. Scott Stroup",
+          "Joseph P. McEvoy",
+          "Marvin S. Swartz",
+          "Robert A. Rosenheck",
+          "Diana O. Perkins",
+          "Richard S. E. Keefe",
+          "Sonia M. Davis",
+          "Clarence E. Davis",
+          "Barry D. Lebowitz",
+          "Joanne Severe",
+          "John K. Hsiao"
+        ],
+        "groupAuthor": "CATIE Investigators",
+        "publicationDate": "2005-09-22",
+        "doi": "10.1056/NEJMoa051688",
+        "pmid": "16172203",
+        "registryId": null,
+        "keywords": [
+          "schizophrenia",
+          "antipsychotics",
+          "comparative effectiveness",
+          "discontinuation",
+          "multiplicity",
+          "metabolic harms"
+        ],
+        "purpose": "Compare antipsychotic effectiveness.",
+        "design": "Double-blind randomized active-comparator trial; up to 18 months.",
+        "population": {
+          "randomized": 1493,
+          "analyzedAtLeastOneDose": 1432,
+          "sites": 57,
+          "geography": "United States",
+          "condition": "chronic schizophrenia"
+        },
+        "authorsClaims": [
+          "Olanzapine improved treatment persistence, with greater metabolic burden; perphenazine resembled several newer comparators."
+        ],
+        "comparators": {
+          "baseline": "Available: Table 1",
+          "placebo": "Absent",
+          "sham": "Not applicable: no procedure",
+          "active": [
+            "olanzapine",
+            "perphenazine",
+            "quetiapine",
+            "risperidone",
+            "ziprasidone"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Any-cause discontinuation",
+            "horizon": "up to 18 months",
+            "reportedPercent": {
+              "olanzapine": 64,
+              "perphenazine": 75,
+              "quetiapine": 82,
+              "risperidone": 74,
+              "ziprasidone": 79
+            },
+            "recomputed": {
+              "olanzapineMinusQuetiapinePercentagePoints": -18
+            },
+            "interpretation": "Rounded crude proportions; not an adjusted survival contrast.",
+            "sourceLocator": "Abstract; Table 2"
+          },
+          {
+            "outcome": "Time to discontinuation",
+            "contrast": "olanzapine/quetiapine",
+            "hazardRatio": 0.63,
+            "p": "<.001",
+            "interpretation": "37% lower estimated hazard, not 37% lower cumulative risk.",
+            "sourceLocator": "Results, Discontinuation of Treatment"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "B",
+            "rationale": "Useful active-effectiveness benchmark; discontinuation mixes efficacy, tolerability and preferences. Restricted perphenazine eligibility and later ziprasidone entry require matched eligible/time cohorts.",
+            "locator": "Methods, Statistical Analysis",
+            "scope": "Compare antipsychotic effectiveness.",
+            "evidenceDepth": "Full original PDF: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Reports persistence and harms; extensive discontinuation complicates later symptom comparisons. The analyzed population excludes randomized patients receiving no dose.",
+            "locator": "Methods; Tables 2–3",
+            "scope": "Compare antipsychotic effectiveness.",
+            "evidenceDepth": "Full original PDF: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "B",
+            "rationale": "Bounded persistence claim is useful. Non-significant differences do not prove equivalence, and a nominal P=.021 perphenazine comparison fails the stated multiplicity threshold.",
+            "locator": "Results; Discussion",
+            "scope": "Compare antipsychotic effectiveness.",
+            "evidenceDepth": "Full original PDF: methods, results, tables, discussion, references",
+            "provisional": true
+          }
+        },
+        "benchmarkDimension": "Comparative effectiveness with explicit benefit–harm tradeoffs.",
+        "evidenceDepth": "Full original PDF: methods, results, tables, discussion, references",
+        "sourceIds": [
+          "BP-CATIE"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1056/NEJMoa051688",
+          "pmid": "16172203"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "tads-2004",
+      "record": {
+        "id": "tads-2004",
+        "benchmark": true,
+        "title": "Fluoxetine, Cognitive-Behavioral Therapy, and Their Combination for Adolescents With Depression: Treatment for Adolescents With Depression Study (TADS) Randomized Controlled Trial",
+        "authors": [
+          "John March",
+          "Susan Silva",
+          "Stephen Petrycki",
+          "John Curry",
+          "Karen Wells",
+          "John Fairbank",
+          "Barbara Burns",
+          "Marisa Domino",
+          "Steven McNulty",
+          "Benedetto Vitiello",
+          "Joanne Severe"
+        ],
+        "groupAuthor": "Treatment for Adolescents With Depression Study (TADS) Team",
+        "publicationDate": "2004-08-18",
+        "doi": "10.1001/jama.292.7.807",
+        "pmid": "15315995",
+        "registryId": null,
+        "keywords": [
+          "adolescent depression",
+          "fluoxetine",
+          "CBT",
+          "expectancy",
+          "suicidality",
+          "adjusted response"
+        ],
+        "purpose": "Compare medication, psychotherapy and their combination.",
+        "design": "Four-arm randomized trial; medication-only comparison blinded, psychotherapy unmasked; masked independent evaluator.",
+        "population": {
+          "randomized": 439,
+          "ageYears": "12–17",
+          "sites": 13,
+          "geography": "United States"
+        },
+        "authorsClaims": [
+          "Combination offered favorable benefit–risk; conclusion also asserted suicidality protection."
+        ],
+        "comparators": {
+          "baseline": "Available: Table 1",
+          "placebo": "Pill placebo",
+          "sham": "No psychotherapy sham",
+          "active": [
+            "fluoxetine",
+            "CBT",
+            "fluoxetine+CBT"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Site-adjusted CGI response",
+            "horizon": "12 weeks",
+            "reportedPercent": {
+              "combination": 71.0,
+              "fluoxetine": 60.6,
+              "CBT": 43.2,
+              "placebo": 34.8
+            },
+            "recomputed": {
+              "combinationMinusPlaceboPercentagePoints": 36.2,
+              "ratioOfAdjustedCombinationToPlaceboRates": 2.0402298851,
+              "fluoxetineMinusPlaceboPercentagePoints": 25.8,
+              "ratioOfAdjustedFluoxetineToPlaceboRates": 1.7413793103
+            },
+            "interpretation": "Arithmetic on adjusted estimates; no reconstructed events or new CI. Combination-versus-fluoxetine responder P=.11.",
+            "sourceLocator": "Results, Primary Outcomes"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "B",
+            "rationale": "Strong package-comparison architecture; unequal contact and expectancy prevent isolation of psychotherapy-specific ingredients.",
+            "locator": "Methods; Limitations",
+            "scope": "Compare medication, psychotherapy and their combination.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Useful effect intervals and harms reporting; response analysis uses last observation carried forward. Model-based uncertainty must be preserved.",
+            "locator": "Statistical Methods; Tables 2–4",
+            "scope": "Compare medication, psychotherapy and their combination.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "C",
+            "rationale": "Suicidality-protection language exceeds rare-event power; non-significance cannot establish CBT–placebo equivalence. Acute package-efficacy conclusions separately merit B.",
+            "locator": "Limitations; Conclusion; Primary Outcomes",
+            "scope": "Compare medication, psychotherapy and their combination.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          }
+        },
+        "benchmarkDimension": "Medication–psychotherapy comparisons with a placebo anchor.",
+        "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+        "sourceIds": [
+          "BP-TADS"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/jama.292.7.807",
+          "pmid": "15315995"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "combine-2006",
+      "record": {
+        "id": "combine-2006",
+        "benchmark": true,
+        "title": "Combined Pharmacotherapies and Behavioral Interventions for Alcohol Dependence: The COMBINE Study: A Randomized Controlled Trial",
+        "authors": [
+          "Raymond F. Anton",
+          "Stephanie S. O'Malley",
+          "Domenic A. Ciraulo",
+          "Ron A. Cisler",
+          "David Couper",
+          "Dennis M. Donovan",
+          "David R. Gastfriend",
+          "James D. Hosking",
+          "Bankole A. Johnson",
+          "Joseph S. LoCastro",
+          "Richard Longabaugh",
+          "Barbara J. Mason",
+          "Margaret E. Mattson",
+          "William R. Miller",
+          "Helen M. Pettinati",
+          "Carrie L. Randall",
+          "Robert Swift",
+          "Roger D. Weiss",
+          "Lauren D. Williams",
+          "Allen Zweben"
+        ],
+        "groupAuthor": "COMBINE Study Research Group",
+        "publicationDate": "2006-05-03",
+        "doi": "10.1001/jama.295.17.2003",
+        "pmid": "16670409",
+        "registryId": "NCT00006206",
+        "keywords": [
+          "alcohol dependence",
+          "naltrexone",
+          "acamprosate",
+          "factorial",
+          "medical management",
+          "interaction"
+        ],
+        "purpose": "Compare pharmacotherapy and behavioral combinations.",
+        "design": "Eight factorial medical-management arms plus behavioral-only ninth arm; 16-week treatment.",
+        "population": {
+          "randomized": 1383,
+          "sites": 11,
+          "geography": "United States",
+          "condition": "recently abstinent alcohol dependence"
+        },
+        "authorsClaims": [
+          "Naltrexone or behavioral intervention benefited patients receiving medical management; acamprosate showed no efficacy evidence here."
+        ],
+        "comparators": {
+          "baseline": "Available: Table 1",
+          "placebo": "Matched pills",
+          "sham": "Not applicable: no procedure",
+          "active": [
+            "naltrexone",
+            "acamprosate",
+            "combined behavioral intervention",
+            "medical management"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Adjusted percentage days abstinent",
+            "horizon": "16 weeks",
+            "reported": {
+              "naltrexoneWithMedicalManagement": 80.6,
+              "placeboWithMedicalManagement": 75.1
+            },
+            "recomputed": {
+              "percentagePointDifference": 5.5,
+              "relativeIncreasePercent": 7.3235685752
+            },
+            "interpretation": "Mean percentage of days, not percentage of abstinent people; contrast averages across acamprosate assignment.",
+            "sourceLocator": "Abstract; Results, Primary Drinking Outcomes"
+          },
+          {
+            "outcome": "Time to first heavy-drinking day",
+            "hazardRatio": 0.72,
+            "confidenceLevel": 0.975,
+            "confidenceInterval": [
+              0.53,
+              0.98
+            ],
+            "interpretation": "28% lower estimated hazard; not an absolute risk reduction.",
+            "sourceLocator": "Abstract; Results"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "B",
+            "rationale": "Factorial design addresses interactions. Ninth-arm package changes cannot isolate a pure placebo effect.",
+            "locator": "Design; Discussion",
+            "scope": "Compare pharmacotherapy and behavioral combinations.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Reports interaction and confidence limits; exclusion of patients without drinking follow-up makes missingness consequential.",
+            "locator": "Figure 1 footnote; Statistical Analysis",
+            "scope": "Compare pharmacotherapy and behavioral combinations.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "B",
+            "rationale": "Bounded treatment-period interpretation is reasonable; neither indefinite benefit nor a single nonspecific mechanism is established.",
+            "locator": "Discussion",
+            "scope": "Compare pharmacotherapy and behavioral combinations.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          }
+        },
+        "benchmarkDimension": "Factorial treatment combinations and interaction-aware interpretation.",
+        "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+        "sourceIds": [
+          "BP-COMBINE"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/jama.295.17.2003",
+          "pmid": "16670409",
+          "nctId": "NCT00006206"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "mta-1999",
+      "record": {
+        "id": "mta-1999",
+        "benchmark": true,
+        "title": "A 14-Month Randomized Clinical Trial of Treatment Strategies for Attention-Deficit/Hyperactivity Disorder",
+        "authors": [
+          "Author metadata not yet verified"
+        ],
+        "groupAuthor": "The MTA Cooperative Group",
+        "publicationDate": "1999-12",
+        "doi": "10.1001/archpsyc.56.12.1073",
+        "pmid": "10591283",
+        "registryId": null,
+        "keywords": [
+          "ADHD",
+          "multimodal treatment",
+          "behavioral treatment",
+          "medication management",
+          "community care",
+          "informant masking"
+        ],
+        "purpose": "Compare sustained ADHD treatment strategies.",
+        "design": "Four-arm randomized comparative-effectiveness trial; 14 months.",
+        "population": {
+          "randomized": 579,
+          "ageYears": "7–9.9",
+          "condition": "combined-type ADHD",
+          "geography": "U.S.-led, U.S. and Montreal, Canada"
+        },
+        "authorsClaims": [
+          "Medication management and combination improved core symptoms versus behavioral or community care; combination offered some broader advantages."
+        ],
+        "comparators": {
+          "baseline": "Available: Table 4",
+          "placebo": "No placebo arm for the 14-month strategy comparison",
+          "sham": "Absent",
+          "active": [
+            "medication management",
+            "behavioral treatment",
+            "combination",
+            "community care"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Teacher-rated inattention",
+            "horizon": "14 months",
+            "reported": {
+              "combined": {
+                "baselineMean": 2.16,
+                "baselineN": 137,
+                "endpointMean": 1.12,
+                "endpointSD": 0.75,
+                "endpointN": 134
+              },
+              "medication": {
+                "baselineMean": 2.27,
+                "baselineN": 135,
+                "endpointMean": 1.11,
+                "endpointSD": 0.77,
+                "endpointN": 120
+              }
+            },
+            "recomputed": {
+              "endpointMeanDifference": 0.01,
+              "unadjustedWelch95CI": [
+                -0.1782859654,
+                0.1982859654
+              ]
+            },
+            "interpretation": "Illustrative available-case endpoint contrast; not the paper's longitudinal model. Different baseline/end counts preclude pretending these are paired changes. No equivalence inference.",
+            "sourceLocator": "Table 4, teacher inattention; Table 5 longitudinal analysis"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "B",
+            "rationale": "Sustained randomized strategy comparison; open informants and package differences limit mechanistic attribution.",
+            "locator": "Randomization; Outcome Measures; Treatment Conditions",
+            "scope": "Compare sustained ADHD treatment strategies.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Longitudinal and multi-informant evidence is useful; missingness and multiple domains require outcome-specific interpretation.",
+            "locator": "Tables 4–5",
+            "scope": "Compare sustained ADHD treatment strategies.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "B",
+            "rationale": "Supports bounded strategy comparisons. Does not identify the drug-only effect against no treatment or prove identical treatments.",
+            "locator": "Discussion",
+            "scope": "Compare sustained ADHD treatment strategies.",
+            "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+            "provisional": true
+          }
+        },
+        "benchmarkDimension": "Sustained active-comparator, multimodal effectiveness research.",
+        "evidenceDepth": "Full original HTML: methods, results, tables, discussion, references",
+        "sourceIds": [
+          "BP-MTA"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/archpsyc.56.12.1073",
+          "pmid": "10591283"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "kane-1988",
+      "record": {
+        "id": "kane-1988",
+        "benchmark": false,
+        "title": "Clozapine for the Treatment-Resistant Schizophrenic: A Double-blind Comparison With Chlorpromazine",
+        "authors": [
+          "John Kane",
+          "Gilbert Honigfeld",
+          "Jack Singer",
+          "Herbert Meltzer"
+        ],
+        "groupAuthor": "Clozaril Collaborative Study Group",
+        "publicationDate": "1988-09",
+        "doi": "10.1001/archpsyc.1988.01800330013001",
+        "pmid": "3046553",
+        "keywords": [
+          "clozapine",
+          "treatment resistance",
+          "active comparator",
+          "enrichment"
+        ],
+        "purpose": "Test clozapine in refractory schizophrenia.",
+        "design": "Six-week blinded randomization after haloperidol nonresponse.",
+        "population": {
+          "randomized": 268,
+          "condition": "selected treatment-resistant schizophrenia",
+          "geography": "United States multicenter"
+        },
+        "authorsClaims": [
+          "Clozapine improved response in this refractory population; rare agranulocytosis remained a concern."
+        ],
+        "comparators": {
+          "baseline": "Run-in response assessed; baseline table not inspected",
+          "placebo": "Absent",
+          "sham": "Not applicable",
+          "active": [
+            "chlorpromazine"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Response",
+            "horizon": "6 weeks",
+            "reportedPercent": {
+              "clozapine": 30,
+              "chlorpromazine": 4
+            },
+            "recomputed": {
+              "roundedPercentagePointDifference": 26,
+              "ratioOfRoundedRates": 7.5
+            },
+            "interpretation": "Approximate arithmetic; denominators/events not reconstructed, no CI inferred.",
+            "sourceLocator": "Abstract"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Abstract only; allocation, attrition and analysis details require full review.",
+            "scope": "Test clozapine in refractory schizophrenia.",
+            "evidenceDepth": "Original abstract and bibliographic metadata; full article not appraised",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Tables and complete harms accounting not inspected.",
+            "scope": "Test clozapine in refractory schizophrenia.",
+            "evidenceDepth": "Original abstract and bibliographic metadata; full article not appraised",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Narrow acute claim plausible; definitive appraisal pending full evidence. No rare harm does not prove safety.",
+            "scope": "Test clozapine in refractory schizophrenia.",
+            "evidenceDepth": "Original abstract and bibliographic metadata; full article not appraised",
+            "provisional": true
+          }
+        },
+        "evidenceDepth": "Original abstract and bibliographic metadata; full article not appraised",
+        "sourceIds": [
+          "BP-KANE"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/archpsyc.1988.01800330013001",
+          "pmid": "3046553"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "emslie-1997",
+      "record": {
+        "id": "emslie-1997",
+        "benchmark": false,
+        "title": "A Double-blind, Randomized, Placebo-Controlled Trial of Fluoxetine in Children and Adolescents With Depression",
+        "authors": [
+          "Graham J. Emslie",
+          "A. John Rush",
+          "Warren A. Weinberg",
+          "Robert A. Kowatch",
+          "Carroll W. Hughes",
+          "Tom Carmody",
+          "Jeanne Rintelmann"
+        ],
+        "publicationDate": "1997-11",
+        "doi": "10.1001/archpsyc.1997.01830230069010",
+        "pmid": "9366660",
+        "keywords": [
+          "fluoxetine",
+          "pediatric depression",
+          "placebo",
+          "LOCF"
+        ],
+        "purpose": "Assess acute pediatric fluoxetine efficacy.",
+        "design": "Eight-week randomized double-blind placebo-controlled trial.",
+        "population": {
+          "randomized": 96,
+          "ageYears": "7–17",
+          "geography": "United States"
+        },
+        "authorsClaims": [
+          "Fluoxetine improved acute depression outcomes."
+        ],
+        "comparators": {
+          "baseline": "Depression assessed; full baseline table unreviewed",
+          "placebo": "Pill placebo",
+          "sham": "Not applicable",
+          "active": [
+            "fluoxetine"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "CGI much/very much improved",
+            "horizon": "8 weeks",
+            "treatment": {
+              "events": 27,
+              "n": 48
+            },
+            "control": {
+              "events": 16,
+              "n": 48
+            },
+            "recomputed": {
+              "riskDifference": 0.2291666667,
+              "riskDifference95CI": [
+                0.0304558845,
+                0.4041365495
+              ],
+              "riskRatio": 1.6875,
+              "riskRatio95CI": [
+                1.0531167365,
+                2.7040271522
+              ],
+              "oddsRatio": 2.5714285714,
+              "NNTBConditional": 4.3636363636
+            },
+            "interpretation": "RD: Newcombe-Wilson; RR: log-Wald. Unadjusted checks do not resolve LOCF bias, multiplicity or response-versus-remission differences.",
+            "sourceLocator": "Abstract, Results"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Abstract-only appraisal; complete allocation/attrition evidence absent.",
+            "scope": "Assess acute pediatric fluoxetine efficacy.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Counts permit arithmetic but not full reporting assessment.",
+            "scope": "Assess acute pediatric fluoxetine efficacy.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Acute benefit does not establish long-term safety; full text required.",
+            "scope": "Assess acute pediatric fluoxetine efficacy.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          }
+        },
+        "evidenceDepth": "Original abstract and bibliographic metadata",
+        "sourceIds": [
+          "BP-EMSLIE"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/archpsyc.1997.01830230069010",
+          "pmid": "9366660"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "omalley-2003",
+      "record": {
+        "id": "omalley-2003",
+        "benchmark": false,
+        "title": "Initial and Maintenance Naltrexone Treatment for Alcohol Dependence Using Primary Care vs Specialty Care: A Nested Sequence of 3 Randomized Trials",
+        "authors": [
+          "Stephanie S. O'Malley",
+          "Bruce J. Rounsaville",
+          "Conor Farren",
+          "Kee Namkoong",
+          "Ran Wu",
+          "Jane Robinson",
+          "Patrick G. O'Connor"
+        ],
+        "publicationDate": "2003-07-28",
+        "doi": "10.1001/archinte.163.14.1695",
+        "pmid": "12885685",
+        "keywords": [
+          "naltrexone",
+          "maintenance",
+          "enriched responders",
+          "nested randomization",
+          "interaction"
+        ],
+        "purpose": "Compare counseling contexts and maintenance medication.",
+        "design": "Initial counseling randomization with open naltrexone; responders rerandomized to maintenance drug/placebo.",
+        "population": {
+          "initialRandomized": 197,
+          "maintenancePCM": 53,
+          "maintenanceCBT": 60,
+          "geography": "United States"
+        },
+        "authorsClaims": [
+          "Maintenance naltrexone helped primary-care responders; CBT maintenance contrast was not significant."
+        ],
+        "comparators": {
+          "baseline": "Table 1 and maintenance starting values",
+          "placebo": "Maintenance phase only",
+          "sham": "Absent",
+          "active": [
+            "naltrexone",
+            "primary care management",
+            "CBT"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Maintained response",
+            "horizon": "24-week maintenance",
+            "context": "Primary care management",
+            "treatment": {
+              "events": 21,
+              "n": 26
+            },
+            "control": {
+              "events": 14,
+              "n": 27
+            },
+            "recomputed": {
+              "riskDifference": 0.2891737892,
+              "riskDifference95CI": [
+                0.0341080134,
+                0.4975485255
+              ],
+              "riskRatio": 1.5576923077
+            },
+            "sourceLocator": "Table 3"
+          },
+          {
+            "outcome": "Maintained response",
+            "horizon": "24-week maintenance",
+            "context": "CBT",
+            "treatment": {
+              "events": 25,
+              "n": 30
+            },
+            "control": {
+              "events": 21,
+              "n": 30
+            },
+            "recomputed": {
+              "riskDifference": 0.1333333333,
+              "riskDifference95CI": [
+                -0.0819248042,
+                0.334975342
+              ],
+              "riskRatio": 1.1904761905
+            },
+            "interpretation": "Independent unadjusted Newcombe-Wilson RD intervals; null-compatible CBT interval is not equivalence. P-value differences do not establish interaction.",
+            "sourceLocator": "Table 4"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "B",
+            "rationale": "Useful sequential design; responder enrichment restricts transportability.",
+            "scope": "Compare counseling contexts and maintenance medication.",
+            "evidenceDepth": "Original full text, especially methods, Tables 1–4, discussion, reference 8",
+            "provisional": true
+          },
+          "results": {
+            "grade": "B",
+            "rationale": "Counts support rechecking, but small maintenance groups leave wide uncertainty.",
+            "scope": "Compare counseling contexts and maintenance medication.",
+            "evidenceDepth": "Original full text, especially methods, Tables 1–4, discussion, reference 8",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "B",
+            "rationale": "Useful bounded maintenance evidence; distinguish counseling-specific estimates from proven effect modification.",
+            "scope": "Compare counseling contexts and maintenance medication.",
+            "evidenceDepth": "Original full text, especially methods, Tables 1–4, discussion, reference 8",
+            "provisional": true
+          }
+        },
+        "evidenceDepth": "Original full text, especially methods, Tables 1–4, discussion, reference 8",
+        "sourceIds": [
+          "BP-OMALLEY"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/archinte.163.14.1695",
+          "pmid": "12885685"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "gillberg-1997",
+      "record": {
+        "id": "gillberg-1997",
+        "benchmark": false,
+        "title": "Long-term Stimulant Treatment of Children With Attention-Deficit Hyperactivity Disorder Symptoms: A Randomized, Double-blind, Placebo-Controlled Trial",
+        "authors": [
+          "Christopher Gillberg",
+          "Hans Melander",
+          "Anne-Liis von Knorring",
+          "Lars-Olof Janols",
+          "Gunilla Thernlund",
+          "Bruno Hägglöf",
+          "Lena Eidevall-Wallin",
+          "Peik Gustafsson",
+          "Svenny Kopp"
+        ],
+        "publicationDate": "1997-09",
+        "doi": "10.1001/archpsyc.1997.01830210105014",
+        "pmid": "9294377",
+        "keywords": [
+          "ADHD",
+          "amphetamine",
+          "placebo",
+          "long-term",
+          "Sweden"
+        ],
+        "purpose": "Assess sustained stimulant effects.",
+        "design": "Randomized double-blind parallel amphetamine/placebo comparison.",
+        "population": {
+          "randomized": 62,
+          "ageYears": "6–11",
+          "geography": "Sweden; cited background, not a U.S. benchmark"
+        },
+        "authorsClaims": [
+          "Positive drug effects remained after 15 months."
+        ],
+        "comparators": {
+          "baseline": "Full baseline table not inspected",
+          "placebo": "Present",
+          "sham": "Not applicable",
+          "active": [
+            "amphetamine"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Symptoms and treatment failure",
+            "horizon": "15 months",
+            "reportedDirection": "Favors amphetamine",
+            "recomputed": null,
+            "missingForReanalysis": "Group event counts, means, dispersion and attrition details absent from inspected abstract",
+            "sourceLocator": "Abstract"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Abstract-only evidence.",
+            "scope": "Assess sustained stimulant effects.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "No extractable numerical effect/uncertainty in inspected abstract.",
+            "scope": "Assess sustained stimulant effects.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Cannot assess precision, missingness or safety claims without full text.",
+            "scope": "Assess sustained stimulant effects.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          }
+        },
+        "evidenceDepth": "Original abstract and bibliographic metadata",
+        "sourceIds": [
+          "BP-GILLBERG"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/archpsyc.1997.01830210105014",
+          "pmid": "9294377"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "volpicelli-1992",
+      "record": {
+        "id": "volpicelli-1992",
+        "benchmark": false,
+        "title": "Naltrexone in the Treatment of Alcohol Dependence",
+        "authors": [
+          "Joseph R. Volpicelli",
+          "Arthur I. Alterman",
+          "Motoi Hayashida",
+          "Charles P. O'Brien"
+        ],
+        "publicationDate": "1992-11",
+        "doi": "10.1001/archpsyc.1992.01820110040006",
+        "pmid": "1345133",
+        "keywords": [
+          "alcohol dependence",
+          "naltrexone",
+          "relapse",
+          "placebo",
+          "men"
+        ],
+        "purpose": "Evaluate adjunctive naltrexone after detoxification.",
+        "design": "12-week randomized double-blind placebo-controlled trial.",
+        "population": {
+          "randomized": 70,
+          "sex": "men",
+          "geography": "United States"
+        },
+        "authorsClaims": [
+          "Naltrexone may reduce alcohol relapse as adjunctive treatment."
+        ],
+        "comparators": {
+          "baseline": "Baseline table not inspected",
+          "placebo": "Present",
+          "sham": "Not applicable",
+          "active": [
+            "naltrexone 50 mg/day"
+          ]
+        },
+        "results": [
+          {
+            "outcome": "Relapse",
+            "horizon": "12 weeks",
+            "reportedPercent": {
+              "naltrexone": 23,
+              "placebo": 54.3
+            },
+            "recomputed": {
+              "roundedRiskDifference": -0.313,
+              "ratioOfRoundedRates": 0.423572744,
+              "relativeReductionPercent": 57.6427255985
+            },
+            "interpretation": "Rounded-rate arithmetic only; no exact group counts or CI inferred. This does not establish long-term benefit or broad-population safety.",
+            "sourceLocator": "PubMed original abstract"
+          }
+        ],
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Full allocation and attrition evidence not inspected.",
+            "scope": "Evaluate adjunctive naltrexone after detoxification.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Abstract-only reporting.",
+            "scope": "Evaluate adjunctive naltrexone after detoxification.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "Acute selected-population signal; full assessment pending.",
+            "scope": "Evaluate adjunctive naltrexone after detoxification.",
+            "evidenceDepth": "Original abstract and bibliographic metadata",
+            "provisional": true
+          }
+        },
+        "evidenceDepth": "Original abstract and bibliographic metadata",
+        "sourceIds": [
+          "BP-VOLPICELLI"
+        ],
+        "lastReviewedAt": "2026-11-13",
+        "identifiers": {
+          "doi": "10.1001/archpsyc.1992.01820110040006",
+          "pmid": "1345133"
+        },
+        "rubricVersion": "1.0",
+        "changeReason": "Initial sourced benchmark or citation-source appraisal, November 13, 2026."
+      }
+    },
+    {
+      "id": "baldwin-2011-partially-clustered-designs",
+      "record": {
+        "id": "baldwin-2011-partially-clustered-designs",
+        "title": "Evaluating Models for Partially Clustered Designs",
+        "authors": [
+          "Scott A. Baldwin",
+          "Daniel J. Bauer",
+          "Eric Stice",
+          "Paul Rohde"
+        ],
+        "publicationDate": "2011-04-25",
+        "keywords": [
+          "simulation",
+          "partially clustered design",
+          "multilevel model",
+          "Type I error",
+          "power",
+          "intraclass correlation",
+          "psychotherapy",
+          "degrees of freedom"
+        ],
+        "purpose": "Compare five statistical approaches for data clustered in some trial conditions but not others, assessing error rates, bias, efficiency, and power; illustrate with eating-disorder prevention trial data.",
+        "authorsClaims": [
+          "The authors report that multilevel models tailored to partial clustering perform favorably with appropriate degrees of freedom and emphasize the importance of the number of clusters for power. This is their conclusion within the simulation settings studied, not an independently reproduced universal result."
+        ],
+        "identifiers": {
+          "doi": "10.1037/a0023464",
+          "pmid": "21517179"
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "The abstract, introduction, and initial model sections were inspected, but the complete simulation configuration, implementation, and limitations were not audited. Insufficient depth for a defensible design grade; U does not mean inadequate.",
+            "scope": "Design of the methods simulation and its empirical illustration, not efficacy of an intervention",
+            "evidenceDepth": "Partial full-text inspection of author-hosted PDF; bibliographic cross-check in PubMed"
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Reported high-level findings were recorded, but numerical tables, simulation code, Monte Carlo uncertainty, and empirical data were not independently reproduced.",
+            "scope": "Reliability and reproducibility of simulation and illustrative reanalysis results",
+            "evidenceDepth": "Reported abstract-level findings; no independent reanalysis"
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "The paper's conclusion is traceable, but its full range of studied conditions and exceptions was not examined sufficiently to grade generalization.",
+            "scope": "Whether methodological recommendations stay within the evaluated scenarios",
+            "evidenceDepth": "Abstract and selected model/background sections only"
+          }
+        },
+        "sourceIds": [
+          "PSY05"
+        ],
+        "recordKind": "methods",
+        "evidenceDepth": "Initial traceable record. Author-hosted PDF partially inspected; online-first date 2011-04-25 appears on page 149; journal issue is June 2011. Authors, DOI, and PMID cross-checked in PubMed. Full simulation validation remains pending."
+      }
+    },
+    {
+      "id": "magnusson-2018-therapist-effects-longitudinal",
+      "record": {
+        "id": "magnusson-2018-therapist-effects-longitudinal",
+        "title": "The consequences of ignoring therapist effects in trials with longitudinal data: A simulation study",
+        "authors": [
+          "Kristoffer Magnusson",
+          "Gerhard Andersson",
+          "Per Carlbring"
+        ],
+        "publicationDate": "2018",
+        "keywords": [
+          "simulation",
+          "therapist effects",
+          "longitudinal",
+          "mixed-effects model",
+          "random slope",
+          "Type I error",
+          "partial nesting",
+          "missing data",
+          "psychotherapy"
+        ],
+        "purpose": "Study consequences of ignoring therapist effects on patient change over time, including fully and partially nested treatment designs, unequal patient allocation, and missing data.",
+        "authorsClaims": [
+          "The authors report that several interacting factors affect false-positive rates and that very few therapists can bias therapist-level variance estimates. They recommend accounting for therapist effects on rates of change. These abstract-level claims were not independently reproduced."
+        ],
+        "identifiers": {
+          "doi": "10.1037/ccp0000333",
+          "pmid": "30138011"
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "Only the bibliographic record and abstract were inspected; the full simulation assumptions, scenarios, and implementation are unavailable in the reviewed evidence.",
+            "scope": "Validity and coverage of the statistical simulation design",
+            "evidenceDepth": "PubMed abstract and metadata"
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "No detailed result tables, code execution, or numerical replication was examined. An abstract cannot support a full results grade.",
+            "scope": "Numerical performance and reproducibility of compared longitudinal models",
+            "evidenceDepth": "Abstract only; no independent calculation"
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "The authors' recommendation is recorded, but full limitations and the boundary between supported simulation findings and wider extrapolation have not been assessed.",
+            "scope": "Generality of recommendations for psychotherapy longitudinal analysis",
+            "evidenceDepth": "Abstract only"
+          }
+        },
+        "sourceIds": [
+          "PSY06"
+        ],
+        "recordKind": "methods",
+        "evidenceDepth": "Initial traceable record based on the opened PubMed abstract and metadata. Publication year is verified; the record gives September 2018 but no exact day was verified. Full-text appraisal and numerical reproduction remain pending."
+      }
+    },
+    {
+      "id": "szigeti-2021-self-blinding-microdosing",
+      "record": {
+        "id": "szigeti-2021-self-blinding-microdosing",
+        "title": "Self-blinding citizen science to explore psychedelic microdosing",
+        "authors": [
+          "Balázs Szigeti",
+          "Laura Kartner",
+          "Allan Blemings",
+          "Fernando Rosas",
+          "Amanda Feilding",
+          "David J. Nutt",
+          "Robin L. Carhart-Harris",
+          "David Erritzoe"
+        ],
+        "publicationDate": "2021-03-02",
+        "keywords": [
+          "psychedelic microdosing",
+          "citizen science",
+          "self-blinding",
+          "placebo",
+          "expectancy",
+          "psychological well-being",
+          "cognition",
+          "masking"
+        ],
+        "purpose": "Examine cognitive and psychological outcomes during a self-blinding citizen-science microdosing study incorporating placebo conditions.",
+        "authorsClaims": [
+          "The authors report improvement from baseline in both active and placebo groups without significant between-group differences in the main psychological outcomes. They interpret the findings as consistent with placebo explanations for anecdotal benefits and attribute some small acute differences to broken masking. These interpretations are recorded as author claims, not established causal decomposition."
+        ],
+        "identifiers": {
+          "doi": "10.7554/eLife.62878",
+          "pmid": "33648632"
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "The abstract and study approach were inspected, but assignment implementation, attrition, preregistration, protocol, and detailed masking assessment were not fully audited. A complete design grade would overstate the review performed.",
+            "scope": "Citizen-science microdosing comparison; no extrapolation to supervised high-dose clinical treatment",
+            "evidenceDepth": "Full-text page opened; abstract and study-approach passages inspected"
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "Neither the full outcome set nor the available participant-level data and analysis code were independently analyzed. Within-arm improvement and non-significance alone cannot establish equivalence.",
+            "scope": "Treatment contrasts, uncertainty, missingness, multiplicity, and reproducibility",
+            "evidenceDepth": "Reported high-level findings; no independent reanalysis"
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "A full appraisal of the authors' placebo/expectancy interpretation requires detailed estimates and assumptions; postrandomization masking guesses do not by themselves identify a pure expectancy effect.",
+            "scope": "Whether claims about microdosing and expectancy follow from the actual design and results",
+            "evidenceDepth": "Abstract and selected study-approach content; complete conclusion audit pending"
+          }
+        },
+        "sourceIds": [
+          "PSY10"
+        ],
+        "recordKind": "empirical",
+        "evidenceDepth": "Initial traceable record. The PMC full-text page was opened and relevant introductory content inspected; authors, date, DOI, and PMID were verified against PubMed and the eLife version-of-record listing. Public data availability was observed, but data were not downloaded or analyzed."
+      }
+    },
+    {
+      "id": "vickers-2001-percentage-change-simulation",
+      "record": {
+        "id": "vickers-2001-percentage-change-simulation",
+        "title": "The use of percentage change from baseline as an outcome in a controlled trial is statistically inefficient: a simulation study",
+        "authors": [
+          "Andrew J. Vickers"
+        ],
+        "publicationDate": "2001-06-28",
+        "keywords": [
+          "simulation",
+          "percentage change",
+          "baseline adjustment",
+          "ANCOVA",
+          "change score",
+          "power",
+          "continuous outcome",
+          "randomized trial"
+        ],
+        "purpose": "Compare post-treatment scores, absolute change, percentage change, and baseline-adjusted ANCOVA for a hypothetical randomized trial over different baseline-to-follow-up correlations.",
+        "authorsClaims": [
+          "The author reports greatest power for ANCOVA and poorest power for percentage change in the studied simulations, with percentage change sensitive to variance. He recommends using another analysis and converting its results for percentage-change presentation when desired. This records his conclusion rather than establishing a universal prohibition across all statistical models."
+        ],
+        "identifiers": {
+          "doi": "10.1186/1471-2288-1-6",
+          "pmid": "11459516"
+        },
+        "grades": {
+          "design": {
+            "grade": "U",
+            "rationale": "The abstract describes the comparison, but complete data-generating assumptions, parameter ranges, simulation counts, and implementation were not inspected.",
+            "scope": "Validity and coverage of the methodological simulation",
+            "evidenceDepth": "Indexed PubMed abstract and PMC metadata excerpts"
+          },
+          "results": {
+            "grade": "U",
+            "rationale": "No simulation tables, code, or replication were assessed, so the numerical findings cannot yet receive an evidence-based quality grade.",
+            "scope": "Power, bias, distributional behavior, and numerical reproducibility",
+            "evidenceDepth": "Abstract-level results; no independent reproduction"
+          },
+          "conclusions": {
+            "grade": "U",
+            "rationale": "The recommendation was verified as the author's claim, but assessing its breadth requires the complete study assumptions and limitations.",
+            "scope": "Transfer of simulation findings to other continuous-outcome trial analyses",
+            "evidenceDepth": "Abstract only"
+          }
+        },
+        "sourceIds": [
+          "ST12"
+        ],
+        "recordKind": "methods",
+        "evidenceDepth": "Initial traceable record based on indexed original PubMed/PMC content. Exact electronic publication date, sole author, DOI, and PMID verified. Full-text access in the original research pass encountered a challenge; no bypass or numerical reproduction was attempted. This is distinct from the Vickers–Altman baseline/follow-up methods note."
+      }
+    }
+  ],
+  "sources": [
+    {
+      "id": "dpp-primary",
+      "record": {
+        "id": "dpp-primary",
+        "url": "https://www.nejm.org/doi/full/10.1056/NEJMoa012512",
+        "alternateUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1370926/",
+        "type": "original report",
+        "locators": [
+          "Abstract",
+          "Methods",
+          "Results: Incidence of Diabetes",
+          "Figure 2/Table 2",
+          "Introduction ref 8"
+        ],
+        "webRefs": [
+          "turn38view0",
+          "turn64search0",
+          "turn64search8",
+          "turn65search0",
+          "turn65search3"
+        ],
+        "access": "PMC initial partial content; subsequent CAPTCHA; publisher search-indexed excerpts; direct publisher opening failed",
+        "title": "Reduction in the Incidence of Type 2 Diabetes with Lifestyle Intervention or Metformin",
+        "evidenceDepth": "PMC initial partial content; subsequent CAPTCHA; publisher search-indexed excerpts; direct publisher opening failed"
+      }
+    },
+    {
+      "id": "dpp-pubmed",
+      "record": {
+        "id": "dpp-pubmed",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/11832527/",
+        "type": "original abstract/metadata",
+        "webRefs": [
+          "turn37search0",
+          "turn65search1"
+        ],
+        "access": "abstract/metadata",
+        "indexedNamedAuthors": [
+          "William C. Knowler",
+          "Elizabeth Barrett-Connor",
+          "Sarah E. Fowler",
+          "Richard F. Hamman",
+          "John M. Lachin",
+          "Elizabeth A. Walker",
+          "David M. Nathan"
+        ],
+        "title": "Reduction in the Incidence of Type 2 Diabetes with Lifestyle Intervention or Metformin",
+        "evidenceDepth": "abstract/metadata"
+      }
+    },
+    {
+      "id": "allhat-primary",
+      "record": {
+        "id": "allhat-primary",
+        "url": "https://jamanetwork.com/journals/jama/fullarticle/195626",
+        "type": "original report",
+        "locators": [
+          "Methods lines 244–274",
+          "Table 1",
+          "Table 5",
+          "References no. 18"
+        ],
+        "webRefs": [
+          "turn38view1",
+          "turn50view0",
+          "turn60view0",
+          "turn61view0"
+        ],
+        "access": "full text",
+        "title": "Major Outcomes in High-Risk Hypertensive Patients Randomized to Angiotensin-Converting Enzyme Inhibitor or Calcium Channel Blocker vs Diuretic: The Antihypertensive and Lipid-Lowering Treatment to Prevent Heart Attack Trial (ALLHAT)",
+        "evidenceDepth": "full text"
+      }
+    },
+    {
+      "id": "allhat-correction-2003",
+      "record": {
+        "id": "allhat-correction-2003",
+        "url": "https://jamanetwork.com/journals/jama/fullarticle/195720",
+        "doi": "10.1001/jama.289.2.178a",
+        "publicationDate": "2003-01-08",
+        "type": "correction",
+        "locators": [
+          "Notice and replacement Table 6"
+        ],
+        "webRefs": [
+          "turn59view0"
+        ],
+        "access": "full text",
+        "title": "Correction to: Major Outcomes in High-Risk Hypertensive Patients Randomized to Angiotensin-Converting Enzyme Inhibitor or Calcium Channel Blocker vs Diuretic: The Antihypertensive and Lipid-Lowering Treatment to Prevent Heart Attack Trial (ALLHAT)",
+        "evidenceDepth": "full text"
+      }
+    },
+    {
+      "id": "whi-primary",
+      "record": {
+        "id": "whi-primary",
+        "url": "https://jamanetwork.com/journals/jama/fullarticle/195120",
+        "type": "original report",
+        "locators": [
+          "Methods",
+          "Tables 1–4",
+          "Comment",
+          "References no. 10"
+        ],
+        "webRefs": [
+          "turn38view2",
+          "turn39view4",
+          "turn50view1",
+          "turn60view1",
+          "turn60view2"
+        ],
+        "access": "full text",
+        "title": "Risks and Benefits of Estrogen Plus Progestin in Healthy Postmenopausal Women: Principal Results From the Women's Health Initiative Randomized Controlled Trial",
+        "evidenceDepth": "full text"
+      }
+    },
+    {
+      "id": "finnish-dps-primary",
+      "record": {
+        "id": "finnish-dps-primary",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/11333990/",
+        "type": "original abstract/metadata",
+        "locators": [
+          "Abstract Methods/Results/Conclusions"
+        ],
+        "webRefs": [
+          "turn61view2",
+          "turn65search6"
+        ],
+        "access": "abstract/metadata",
+        "title": "Prevention of Type 2 Diabetes Mellitus by Changes in Lifestyle among Subjects with Impaired Glucose Tolerance",
+        "evidenceDepth": "abstract/metadata"
+      }
+    },
+    {
+      "id": "allhat-design-primary",
+      "record": {
+        "id": "allhat-design-primary",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/8722437/",
+        "type": "original abstract/metadata",
+        "locators": [
+          "Abstract"
+        ],
+        "webRefs": [
+          "turn47view1"
+        ],
+        "access": "abstract/metadata",
+        "title": "Rationale and Design for the Antihypertensive and Lipid Lowering Treatment to Prevent Heart Attack Trial (ALLHAT)",
+        "evidenceDepth": "abstract/metadata"
+      }
+    },
+    {
+      "id": "hers-primary",
+      "record": {
+        "id": "hers-primary",
+        "url": "https://jamanetwork.com/journals/jama/fullarticle/187879",
+        "type": "original report",
+        "locators": [
+          "Abstract",
+          "Comment: Effects of Progestin",
+          "References no. 31"
+        ],
+        "webRefs": [
+          "turn43view3",
+          "turn50view2"
+        ],
+        "access": "full text relevant sections",
+        "title": "Randomized Trial of Estrogen Plus Progestin for Secondary Prevention of Coronary Heart Disease in Postmenopausal Women",
+        "evidenceDepth": "full text relevant sections"
+      }
+    },
+    {
+      "id": "pepi-primary",
+      "record": {
+        "id": "pepi-primary",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/7807658/",
+        "publisherUrl": "https://jamanetwork.com/journals/jama/article-abstract/386103",
+        "type": "original abstract/metadata",
+        "locators": [
+          "Abstract",
+          "Erratum listing"
+        ],
+        "webRefs": [
+          "turn47view2",
+          "turn46search4"
+        ],
+        "access": "abstract/metadata",
+        "title": "Effects of Estrogen or Estrogen/Progestin Regimens on Heart Disease Risk Factors in Postmenopausal Women: The Postmenopausal Estrogen/Progestin Interventions (PEPI) Trial",
+        "evidenceDepth": "abstract/metadata"
+      }
+    },
+    {
+      "id": "BP-CATIE",
+      "record": {
+        "id": "BP-CATIE",
+        "url": "https://www.nejm.org/doi/pdf/10.1056/NEJMoa051688?articleTools=true",
+        "alternateMetadataUrl": "https://pubmed.ncbi.nlm.nih.gov/16172203/",
+        "webRef": "turn44view0",
+        "inspectedDepth": "full PDF",
+        "locators": [
+          "Abstract",
+          "Statistical Analysis",
+          "Tables 1–3",
+          "Reference 2"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "Effectiveness of Antipsychotic Drugs in Patients with Chronic Schizophrenia",
+        "evidenceDepth": "full PDF"
+      }
+    },
+    {
+      "id": "BP-TADS",
+      "record": {
+        "id": "BP-TADS",
+        "url": "https://jamanetwork.com/journals/jama/fullarticle/199274",
+        "webRef": "turn69view1",
+        "inspectedDepth": "full HTML",
+        "locators": [
+          "Statistical Methods",
+          "Primary Outcomes",
+          "Limitations",
+          "Conclusion",
+          "Reference 11"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "Fluoxetine, Cognitive-Behavioral Therapy, and Their Combination for Adolescents With Depression: Treatment for Adolescents With Depression Study (TADS) Randomized Controlled Trial",
+        "evidenceDepth": "full HTML"
+      }
+    },
+    {
+      "id": "BP-COMBINE",
+      "record": {
+        "id": "BP-COMBINE",
+        "url": "https://jamanetwork.com/journals/jama/fullarticle/202789",
+        "alternateMetadataUrl": "https://pubmed.ncbi.nlm.nih.gov/16670409/",
+        "webRef": "turn66view2",
+        "inspectedDepth": "full HTML",
+        "locators": [
+          "Figure 1 footnote",
+          "Abstract",
+          "Discussion",
+          "Reference 59"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "Combined Pharmacotherapies and Behavioral Interventions for Alcohol Dependence: The COMBINE Study: A Randomized Controlled Trial",
+        "evidenceDepth": "full HTML"
+      }
+    },
+    {
+      "id": "BP-MTA",
+      "record": {
+        "id": "BP-MTA",
+        "url": "https://jamanetwork.com/journals/jamapsychiatry/fullarticle/205525",
+        "webRef": "turn68view0",
+        "inspectedDepth": "full HTML",
+        "locators": [
+          "Randomization",
+          "Outcome Measures",
+          "Tables 4–5",
+          "Reference 9"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "A 14-Month Randomized Clinical Trial of Treatment Strategies for Attention-Deficit/Hyperactivity Disorder",
+        "evidenceDepth": "full HTML"
+      }
+    },
+    {
+      "id": "BP-KANE",
+      "record": {
+        "id": "BP-KANE",
+        "url": "https://jamanetwork.com/journals/jamapsychiatry/article-abstract/494368",
+        "alternateMetadataUrl": "https://pubmed.ncbi.nlm.nih.gov/3046553/",
+        "webRef": "turn67search0",
+        "inspectedDepth": "original abstract",
+        "locators": [
+          "Abstract"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "Clozapine for the Treatment-Resistant Schizophrenic: A Double-blind Comparison With Chlorpromazine",
+        "evidenceDepth": "original abstract"
+      }
+    },
+    {
+      "id": "BP-EMSLIE",
+      "record": {
+        "id": "BP-EMSLIE",
+        "url": "https://jamanetwork.com/journals/jamapsychiatry/article-abstract/497964",
+        "webRef": "turn67view1",
+        "inspectedDepth": "original abstract",
+        "locators": [
+          "Abstract, Results"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "A Double-blind, Randomized, Placebo-Controlled Trial of Fluoxetine in Children and Adolescents With Depression",
+        "evidenceDepth": "original abstract"
+      }
+    },
+    {
+      "id": "BP-OMALLEY",
+      "record": {
+        "id": "BP-OMALLEY",
+        "url": "https://jamanetwork.com/journals/jamainternalmedicine/fullarticle/215873",
+        "webRef": "turn63view0",
+        "inspectedDepth": "full HTML",
+        "locators": [
+          "Methods",
+          "Tables 3–4",
+          "Reference 8"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "Initial and Maintenance Naltrexone Treatment for Alcohol Dependence Using Primary Care vs Specialty Care: A Nested Sequence of 3 Randomized Trials",
+        "evidenceDepth": "full HTML"
+      }
+    },
+    {
+      "id": "BP-GILLBERG",
+      "record": {
+        "id": "BP-GILLBERG",
+        "url": "https://jamanetwork.com/journals/jamapsychiatry/article-abstract/497920",
+        "webRef": "turn69view0",
+        "inspectedDepth": "original abstract",
+        "locators": [
+          "Abstract"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "Long-term Stimulant Treatment of Children With Attention-Deficit Hyperactivity Disorder Symptoms: A Randomized, Double-blind, Placebo-Controlled Trial",
+        "evidenceDepth": "original abstract"
+      }
+    },
+    {
+      "id": "BP-VOLPICELLI",
+      "record": {
+        "id": "BP-VOLPICELLI",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/1345133/",
+        "webRef": "turn62view0",
+        "inspectedDepth": "original abstract",
+        "locators": [
+          "Abstract"
+        ],
+        "accessedAt": "2026-11-13",
+        "title": "Naltrexone in the Treatment of Alcohol Dependence",
+        "evidenceDepth": "original abstract"
+      }
+    },
+    {
+      "id": "TS-CFR",
+      "record": {
+        "id": "TS-CFR",
+        "title": "21 CFR 314.126: Adequate and well-controlled studies",
+        "url": "https://www.ecfr.gov/current/title-21/chapter-I/subchapter-D/part-314/subpart-D/section-314.126",
+        "issuer": "FDA regulation / eCFR",
+        "date_status": "Current text displayed as up to date 2026-11-10",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Full section text",
+        "locators": "(a), (b)(1)-(7), (e)",
+        "claims": "Regulatory scope; recognized controls; adequate assignment, assessment, and analysis",
+        "web_ref": "turn12view0",
+        "evidenceDepth": "Full section text"
+      }
+    },
+    {
+      "id": "TS-GUIDANCE",
+      "record": {
+        "id": "TS-GUIDANCE",
+        "title": "Clinical Trials Guidance Documents",
+        "url": "https://www.fda.gov/science-research/clinical-trials-and-human-subject-protection/clinical-trials-guidance-documents",
+        "issuer": "FDA",
+        "date_status": "Live index",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Introductory guidance-status text",
+        "locators": "Opening paragraphs",
+        "claims": "Guidance nonbinding except applicable cited law",
+        "web_ref": "turn1search4",
+        "evidenceDepth": "Introductory guidance-status text"
+      }
+    },
+    {
+      "id": "TS-E6",
+      "record": {
+        "id": "TS-E6",
+        "title": "E6(R3) Good Clinical Practice",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/e6r3-good-clinical-practice-gcp",
+        "issuer": "FDA/ICH",
+        "date_status": "Final FDA guidance, September 2025",
+        "access_date": "2026-11-13",
+        "inspected_depth": "FDA landing-page status and overview",
+        "locators": "Title/status and key updates",
+        "claims": "FDA final status; risk-proportionate quality by design",
+        "web_ref": "turn0search2",
+        "evidenceDepth": "FDA landing-page status and overview"
+      }
+    },
+    {
+      "id": "TS-E6A2",
+      "record": {
+        "id": "TS-E6A2",
+        "title": "E6(R3) Good Clinical Practice: Annex 2",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/e6r3-good-clinical-practice-annex-2",
+        "issuer": "FDA/ICH",
+        "date_status": "FDA page lists draft, December 2024",
+        "access_date": "2026-11-13",
+        "inspected_depth": "FDA landing-page status and overview",
+        "locators": "Title/status and scope",
+        "claims": "FDA draft status; decentralized/pragmatic/RWD scope; not implementation-ready",
+        "web_ref": "turn3view5",
+        "evidenceDepth": "FDA landing-page status and overview"
+      }
+    },
+    {
+      "id": "TS-E8",
+      "record": {
+        "id": "TS-E8",
+        "title": "E8(R1) General Considerations for Clinical Studies",
+        "url": "https://www.fda.gov/media/157560/download",
+        "issuer": "FDA/ICH",
+        "date_status": "Final FDA guidance, April 2022",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; targeted sections inspected",
+        "locators": "Sections 2.2, 3, 5; printed pages 3-8 and design headings",
+        "claims": "Fit for purpose; critical-to-quality factors; clinical objectives and design",
+        "web_ref": "turn12view1",
+        "evidenceDepth": "PDF accessible; targeted sections inspected"
+      }
+    },
+    {
+      "id": "TS-E9",
+      "record": {
+        "id": "TS-E9",
+        "title": "E9 Statistical Principles for Clinical Trials",
+        "url": "https://www.hhs.gov/guidance/sites/default/files/hhs-guidance-documents/FDA/E9-Statistical-Principles-for-Clinical-Trials.pdf",
+        "issuer": "FDA/ICH via HHS",
+        "date_status": "Final FDA guidance, September 1998",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; targeted sections inspected",
+        "locators": "2.3.1-2.3.2; 3.3-3.5; 5.2 headings and randomization text",
+        "claims": "Randomization, masking, configuration, precision and analysis foundations",
+        "web_ref": "turn17view0",
+        "evidenceDepth": "PDF accessible; targeted sections inspected"
+      }
+    },
+    {
+      "id": "TS-E9R1",
+      "record": {
+        "id": "TS-E9R1",
+        "title": "E9(R1) Estimands and Sensitivity Analysis in Clinical Trials",
+        "url": "https://www.fda.gov/media/148473/download",
+        "issuer": "FDA/ICH",
+        "date_status": "Final FDA guidance, May 2021; ICH Step 4 November 2019",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; targeted sections inspected",
+        "locators": "A.1-A.3, A.5; principal-stratum and sensitivity passages",
+        "claims": "Estimand attributes; intercurrent events; same-estimand sensitivity vs supplementary analysis",
+        "web_ref": "turn4view0",
+        "evidenceDepth": "PDF accessible; targeted sections inspected"
+      }
+    },
+    {
+      "id": "TS-E10",
+      "record": {
+        "id": "TS-E10",
+        "title": "E10 Choice of Control Group and Related Issues in Clinical Trials",
+        "url": "https://www.fda.gov/media/71349/download",
+        "issuer": "FDA/ICH",
+        "date_status": "Final FDA guidance, May 2001",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; control/assay-sensitivity sections inspected",
+        "locators": "1.5; 2; printed pages 9-14",
+        "claims": "Control question and assay sensitivity; three-arm comparison; bias attenuation vs variance",
+        "web_ref": "turn7view0",
+        "evidenceDepth": "PDF accessible; control/assay-sensitivity sections inspected"
+      }
+    },
+    {
+      "id": "TS-NI",
+      "record": {
+        "id": "TS-NI",
+        "title": "Non-Inferiority Clinical Trials to Establish Effectiveness",
+        "url": "https://www.fda.gov/media/78504/download",
+        "issuer": "FDA",
+        "date_status": "Final, November 2016",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; selected margin/constancy sections inspected",
+        "locators": "M1/M2 discussion; constancy; printed pages 9-11, 24, 28-33",
+        "claims": "Margin justification; historical control effect; NI vs superiority",
+        "web_ref": "turn17view5",
+        "evidenceDepth": "PDF accessible; selected margin/constancy sections inspected"
+      }
+    },
+    {
+      "id": "TS-ADAPT",
+      "record": {
+        "id": "TS-ADAPT",
+        "title": "Adaptive Design Clinical Trials for Drugs and Biologics",
+        "url": "https://www.fda.gov/media/78495/download",
+        "issuer": "FDA",
+        "date_status": "Final, December 2019",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; selected design/error/simulation sections inspected",
+        "locators": "III.A-B; VI.A; printed pages 7-8, 18-20",
+        "claims": "Prespecification; Type I error, estimation bias, simulation operating characteristics",
+        "web_ref": "turn7view2",
+        "evidenceDepth": "PDF accessible; selected design/error/simulation sections inspected"
+      }
+    },
+    {
+      "id": "TS-MULT",
+      "record": {
+        "id": "TS-MULT",
+        "title": "Multiple Endpoints in Clinical Trials",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/multiple-endpoints-clinical-trials",
+        "issuer": "FDA",
+        "date_status": "Final, October 2022",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Landing page, FDA snapshot, Federal Register explanatory text",
+        "locators": "Overview; endpoint hierarchy snapshot; Federal Register background",
+        "claims": "Multiplicity across endpoint families, doses, times, subgroups",
+        "web_ref": "turn7search0",
+        "evidenceDepth": "Landing page, FDA snapshot, Federal Register explanatory text"
+      }
+    },
+    {
+      "id": "TS-COV",
+      "record": {
+        "id": "TS-COV",
+        "title": "Adjusting for Covariates in Randomized Clinical Trials for Drugs and Biological Products",
+        "url": "https://www.fda.gov/media/148910/download",
+        "issuer": "FDA",
+        "date_status": "Final, May 2023",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; targeted sections inspected",
+        "locators": "II-III; printed pages 2-6",
+        "claims": "Prespecified prognostic adjustment; unadjusted analysis acceptable; nonlinear effect interpretation",
+        "web_ref": "turn17view1",
+        "evidenceDepth": "PDF accessible; targeted sections inspected"
+      }
+    },
+    {
+      "id": "TS-EXTERNAL",
+      "record": {
+        "id": "TS-EXTERNAL",
+        "title": "Considerations for the Design and Conduct of Externally Controlled Trials for Drug and Biological Products",
+        "url": "https://www.fda.gov/media/164960/download",
+        "issuer": "FDA",
+        "date_status": "Draft, February 2023; FDA page still draft on access date",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; bias and analysis sections inspected",
+        "locators": "III; V; printed pages 5, 13-15",
+        "claims": "Comparator comparability; unmeasured confounding; sensitivity; draft status",
+        "web_ref": "turn17view2",
+        "evidenceDepth": "PDF accessible; bias and analysis sections inspected"
+      }
+    },
+    {
+      "id": "TS-ENRICH",
+      "record": {
+        "id": "TS-ENRICH",
+        "title": "Enrichment Strategies for Clinical Trials to Support Determination of Effectiveness of Human Drugs and Biological Products",
+        "url": "https://www.fda.gov/media/121320/download",
+        "issuer": "FDA",
+        "date_status": "Final, March 2019",
+        "access_date": "2026-11-13",
+        "inspected_depth": "PDF accessible; applicability sections inspected",
+        "locators": "Introduction; description of enriched populations; printed pages 3, 31",
+        "claims": "Enrichment utility and limitations on generalizability",
+        "web_ref": "turn17view3",
+        "evidenceDepth": "PDF accessible; applicability sections inspected"
+      }
+    },
+    {
+      "id": "TS-ROB",
+      "record": {
+        "id": "TS-ROB",
+        "title": "Cochrane Handbook Chapter 8: Assessing risk of bias in a randomized trial",
+        "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-08",
+        "issuer": "Cochrane",
+        "date_status": "Current online handbook retrieved 2026-11-13",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Section 8.3 retrieved",
+        "locators": "8.3.1-8.3.2",
+        "claims": "Allocation concealment distinct from blinding; predictable allocation; chance imbalance",
+        "web_ref": "turn20search0",
+        "evidenceDepth": "Section 8.3 retrieved"
+      }
+    },
+    {
+      "id": "TS-CONSORT",
+      "record": {
+        "id": "TS-CONSORT",
+        "title": "Published versions of SPIRIT 2025 and CONSORT 2025 Statements",
+        "url": "https://www.consort-spirit.org/published-statements",
+        "issuer": "CONSORT-SPIRIT developers",
+        "date_status": "2025 updates",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Official publication list inspected",
+        "locators": "SPIRIT 2025 / CONSORT 2025 entries",
+        "claims": "Current protocol and trial-reporting statements; not certification of design validity",
+        "web_ref": "turn20search3",
+        "evidenceDepth": "Official publication list inspected"
+      }
+    },
+    {
+      "id": "TS-BAYES",
+      "record": {
+        "id": "TS-BAYES",
+        "title": "Guidance for the Use of Bayesian Statistics in Medical Device Clinical Trials",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/guidance-use-bayesian-statistics-medical-device-clinical-trials",
+        "issuer": "FDA",
+        "date_status": "2010 guidance; section retrieved",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Section 4.4 excerpt inspected",
+        "locators": "4.4 Choosing a comparison: controls",
+        "claims": "Concurrent, self, historical controls; regression to mean and confounding",
+        "web_ref": "turn33search5",
+        "evidenceDepth": "Section 4.4 excerpt inspected"
+      }
+    },
+    {
+      "id": "TS-SHAM",
+      "record": {
+        "id": "TS-SHAM",
+        "title": "Placebo Workshop: Translational Research Domains and Key Questions — meeting summary",
+        "url": "https://www.nimh.nih.gov/news/events/2024/meeting-summary-placebo-workshop-translational-research-domains-and-key-questions",
+        "issuer": "NIMH",
+        "date_status": "2024 workshop summary; expert discussion, not regulatory guidance",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Sham/device sections retrieved",
+        "locators": "Current State of Placebo in Device Trials",
+        "claims": "Sensory matching, residual biological activity, masking issues",
+        "web_ref": "turn33search7",
+        "evidenceDepth": "Sham/device sections retrieved"
+      }
+    },
+    {
+      "id": "TS-SHAMFDA",
+      "record": {
+        "id": "TS-SHAMFDA",
+        "title": "Clinical Investigations of Devices Indicated for the Treatment of Urinary Incontinence",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/clinical-investigations-devices-indicated-treatment-urinary-incontinence-guidance-industry-and-fda",
+        "issuer": "FDA",
+        "date_status": "2011 guidance; disease-specific",
+        "access_date": "2026-11-13",
+        "inspected_depth": "Control/sham passages retrieved",
+        "locators": "Control-group and sham considerations",
+        "claims": "Risk and ethical justification for sham; illustrative only outside this device domain",
+        "web_ref": "turn33search4",
+        "evidenceDepth": "Control/sham passages retrieved"
+      }
+    },
+    {
+      "id": "PSY01",
+      "record": {
+        "id": "PSY01",
+        "title": "Psychedelic Drugs: Considerations for Clinical Investigations",
+        "issuer": "U.S. FDA, Center for Drug Evaluation and Research",
+        "date": "2026-07",
+        "status": "Final guidance; nonbinding recommendations; finalizes June 2023 draft",
+        "url": "https://www.fda.gov/media/169694/download",
+        "landing_url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/psychedelic-drugs-considerations-clinical-investigations",
+        "accessed": "2026-11-13",
+        "depth": "Official indexed landing-page status plus opened PDF; title/introduction and relevant clinical sections inspected, not all pharmaceutical chemistry sections",
+        "locators": [
+          "PDF title pages: July 2026",
+          "Section I, guidance status",
+          "Section III.E.1, Trial Design",
+          "Section III.E.2, Safety Considerations"
+        ],
+        "claims": [
+          "Functional unblinding and expectancy are central design issues",
+          "Alternative controls and central blinded raters discussed",
+          "Drug and psychological intervention contributions require attention",
+          "Durability and repeat dosing matter"
+        ],
+        "web_refs": [
+          "turn2search0",
+          "turn15view0",
+          "turn18view0"
+        ],
+        "limitations": "Initial landing-page open timed out; the official PDF was successfully opened and showed July 2026. Exact regulatory application requires program-specific review.",
+        "evidenceDepth": "Official indexed landing-page status plus opened PDF; title/introduction and relevant clinical sections inspected, not all pharmaceutical chemistry sections"
+      }
+    },
+    {
+      "id": "PSY02",
+      "record": {
+        "id": "PSY02",
+        "title": "CONSORT-SPI 2018 Explanation and Elaboration: guidance for reporting social and psychological intervention trials",
+        "issuer": "Grant et al.; CONSORT-SPI Group; Trials",
+        "date": "2018-07-31",
+        "status": "Original reporting-guideline explanation; not a risk-of-bias certificate",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6066913/",
+        "doi": "10.1186/s13063-018-2735-z",
+        "accessed": "2026-11-13",
+        "depth": "Full-text page opened; checklist, intervention/provider, awareness, and interests sections inspected",
+        "locators": [
+          "Items 5a–5c",
+          "Items 6a–6b",
+          "Item 11b",
+          "Items 25b and 26a"
+        ],
+        "claims": [
+          "Report actual delivery and uptake",
+          "Describe provider assignment, masking, and control differences",
+          "Disclose intervention allegiance and developer involvement"
+        ],
+        "web_refs": [
+          "turn6view1",
+          "turn18view1"
+        ],
+        "evidenceDepth": "Full-text page opened; checklist, intervention/provider, awareness, and interests sections inspected"
+      }
+    },
+    {
+      "id": "PSY03",
+      "record": {
+        "id": "PSY03",
+        "title": "Support for Clinical Trials at NIMH",
+        "issuer": "National Institute of Mental Health",
+        "date": null,
+        "status": "Official funding and experimental-therapeutics guidance; current indexed page",
+        "url": "https://www.nimh.nih.gov/funding/opportunities-announcements/clinical-trials-foas",
+        "accessed": "2026-11-13",
+        "depth": "Substantial official indexed excerpt",
+        "locators": [
+          "Experimental therapeutics approach",
+          "Clinical Trials Pipeline"
+        ],
+        "claims": [
+          "NIMH-supported intervention development evaluates targets and clinical effects",
+          "Mechanistic and efficacy questions are distinguished"
+        ],
+        "web_refs": [
+          "turn2search3"
+        ],
+        "evidenceDepth": "Substantial official indexed excerpt"
+      }
+    },
+    {
+      "id": "PSY04",
+      "record": {
+        "id": "PSY04",
+        "title": "NIH Stage Model for Behavioral Intervention Development",
+        "issuer": "National Institute on Aging",
+        "date": null,
+        "status": "Official conceptual model; expressly nonprescriptive",
+        "url": "https://www.nia.nih.gov/research/dbsr/stage-model-behavioral-intervention-development",
+        "accessed": "2026-11-13",
+        "depth": "Extensive official indexed page text; separate open returned 405",
+        "locators": [
+          "NIH Stage Model Overview",
+          "Stages of Intervention Development",
+          "A Few Clarifications and Some Examples"
+        ],
+        "claims": [
+          "Stages distinguish development, efficacy, effectiveness, and implementation",
+          "Model is iterative and fidelity matters"
+        ],
+        "web_refs": [
+          "turn13search1"
+        ],
+        "limitations": "Do not imply successful direct page fetch; relied on indexed official content.",
+        "evidenceDepth": "Extensive official indexed page text; separate open returned 405"
+      }
+    },
+    {
+      "id": "PSY05",
+      "record": {
+        "id": "PSY05",
+        "title": "Evaluating Models for Partially Clustered Designs",
+        "issuer": "Baldwin, Bauer, Stice, and Rohde; Psychological Methods",
+        "date": "2011-04-25",
+        "status": "Original simulation/methods research",
+        "url": "https://dbauer.web.unc.edu/wp-content/uploads/sites/7494/2014/08/baldwin-et-al-PM-2011.pdf",
+        "doi": "10.1037/a0023464",
+        "accessed": "2026-11-13",
+        "depth": "Author-university-hosted 17-page PDF opened; abstract, introduction, and model sections inspected",
+        "locators": [
+          "Abstract",
+          "Approaches to Modeling Partially Clustered Data",
+          "pp. 149–151"
+        ],
+        "claims": [
+          "Partially clustered designs require appropriate variance structure",
+          "Ignoring clustering can inflate Type I error",
+          "Cluster count and degrees of freedom matter"
+        ],
+        "web_refs": [
+          "turn34view0"
+        ],
+        "limitations": "PMC mirror returned a browser challenge; used author-hosted PDF rather than bypassing it.",
+        "evidenceDepth": "Author-university-hosted 17-page PDF opened; abstract, introduction, and model sections inspected"
+      }
+    },
+    {
+      "id": "PSY06",
+      "record": {
+        "id": "PSY06",
+        "title": "The consequences of ignoring therapist effects in trials with longitudinal data: A simulation study",
+        "issuer": "Magnusson, Andersson, and Carlbring; Journal of Consulting and Clinical Psychology",
+        "date": "2018-09",
+        "status": "Original simulation research",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/30138011/",
+        "doi": "10.1037/ccp0000333",
+        "accessed": "2026-11-13",
+        "depth": "PubMed abstract opened; full paper not inspected",
+        "locators": [
+          "Abstract: methods, results, and conclusion"
+        ],
+        "claims": [
+          "Therapist effects on rate of change matter in longitudinal models",
+          "Very few therapists create variance-estimation difficulty"
+        ],
+        "web_refs": [
+          "turn15view3"
+        ],
+        "evidenceDepth": "PubMed abstract opened; full paper not inspected"
+      }
+    },
+    {
+      "id": "PSY07",
+      "record": {
+        "id": "PSY07",
+        "title": "Analysing controlled trials with baseline and follow up measurements",
+        "issuer": "Vickers and Altman; BMJ",
+        "date": "2001-11-10",
+        "status": "Original statistical methods note",
+        "url": "https://www.bmj.com/content/323/7321/1123",
+        "doi": "10.1136/bmj.323.7321.1123",
+        "accessed": "2026-11-13",
+        "depth": "Extensive indexed methods text; direct open returned 403",
+        "locators": [
+          "Change scores, regression to the mean, and ANCOVA discussion"
+        ],
+        "claims": [
+          "Prespecify baseline/follow-up analysis",
+          "Change scores do not universally resolve baseline imbalance",
+          "ANCOVA is a baseline-adjusted comparison under assumptions"
+        ],
+        "web_refs": [
+          "turn13search2"
+        ],
+        "limitations": "Article uses simplified statements; module retains model-assumption caveats.",
+        "evidenceDepth": "Extensive indexed methods text; direct open returned 403"
+      }
+    },
+    {
+      "id": "PSY08",
+      "record": {
+        "id": "PSY08",
+        "title": "Patient-Reported Outcome Measures: Use in Medical Product Development to Support Labeling Claims",
+        "issuer": "U.S. FDA",
+        "date": "2009-12",
+        "status": "Final guidance; medical product labeling context",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/patient-reported-outcome-measures-use-medical-product-development-support-labeling-claims",
+        "accessed": "2026-11-13",
+        "depth": "Official indexed landing page and introductory PDF excerpt",
+        "locators": [
+          "Guidance status and introduction"
+        ],
+        "claims": [
+          "PRO instruments can measure benefit or risk",
+          "FDA guidance scope is labeling claims rather than every psychological instrument"
+        ],
+        "web_refs": [
+          "turn13search0",
+          "turn13search4"
+        ],
+        "evidenceDepth": "Official indexed landing page and introductory PDF excerpt"
+      }
+    },
+    {
+      "id": "PSY09",
+      "record": {
+        "id": "PSY09",
+        "title": "CONSORT Harms 2022 statement, explanation, and elaboration: updated guideline for the reporting of harms in randomised trials",
+        "issuer": "Junqueira et al.; BMJ",
+        "date": "2023-04-24",
+        "status": "Original reporting guideline; named 2022, published 2023",
+        "url": "https://www.bmj.com/content/381/bmj-2022-073725",
+        "doi": "10.1136/bmj-2022-073725",
+        "accessed": "2026-11-13",
+        "depth": "Extensive indexed article excerpt including terminology and ascertainment",
+        "locators": [
+          "Terminology",
+          "Systematic versus nonsystematic ascertainment",
+          "Table 2"
+        ],
+        "claims": [
+          "Report harms and ascertainment methods fully",
+          "Blanket safe statements can mislead",
+          "Harms require case definitions, metrics, denominators, and timing"
+        ],
+        "web_refs": [
+          "turn13search3"
+        ],
+        "evidenceDepth": "Extensive indexed article excerpt including terminology and ascertainment"
+      }
+    },
+    {
+      "id": "PSY10",
+      "record": {
+        "id": "PSY10",
+        "title": "Self-blinding citizen science to explore psychedelic microdosing",
+        "issuer": "Szigeti et al.; eLife",
+        "date": "2021-03-02",
+        "status": "Original citizen-science study; methods teaching example, not U.S. regulatory evidence standard",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7925122/",
+        "doi": "10.7554/eLife.62878",
+        "accessed": "2026-11-13",
+        "depth": "Full-text page opened; abstract and study approach inspected",
+        "locators": [
+          "Abstract",
+          "Citizen-science study design"
+        ],
+        "claims": [
+          "Baseline improvements occurred in active and placebo groups",
+          "Within-group significance does not establish a between-group benefit"
+        ],
+        "web_refs": [
+          "turn15view2"
+        ],
+        "limitations": "Not used to generalize efficacy to supervised high-dose clinical treatment.",
+        "evidenceDepth": "Full-text page opened; abstract and study approach inspected"
+      }
+    },
+    {
+      "id": "PSY11",
+      "record": {
+        "id": "PSY11",
+        "title": "Conducting Research with Participants at Elevated Risk for Suicide: Considerations for Researchers",
+        "issuer": "National Institute of Mental Health",
+        "date": null,
+        "status": "Official research considerations; expressly not enforceable policy",
+        "url": "https://www.nimh.nih.gov/funding/clinical-research/conducting-research-with-participants-at-elevated-risk-for-suicide-considerations-for-researchers",
+        "accessed": "2026-11-13",
+        "depth": "Official page opened; introduction, safety questions, and indexed monitoring sections inspected",
+        "locators": [
+          "Ethical and Participant Safety Questions",
+          "Responding to Suicidal Crises and Clinical Worsening",
+          "End of Study Participation"
+        ],
+        "claims": [
+          "Plans should address crisis response, staff training, monitoring, and after-study transition",
+          "Comparator ethics and inclusion of higher-risk participants need explicit reasoning"
+        ],
+        "web_refs": [
+          "turn6search1",
+          "turn15view4"
+        ],
+        "evidenceDepth": "Official page opened; introduction, safety questions, and indexed monitoring sections inspected"
+      }
+    },
+    {
+      "id": "PSY12",
+      "record": {
+        "id": "PSY12",
+        "title": "Suicidal Ideation and Behavior: Prospective Assessment of Occurrence in Clinical Trials",
+        "issuer": "U.S. FDA",
+        "date": "2012-08",
+        "status": "DRAFT; official page says not for implementation",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/guidance-industry-suicidal-ideation-and-behavior-prospective-assessment-occurrence-clinical-trials",
+        "accessed": "2026-11-13",
+        "depth": "Official landing page opened; status and scope inspected",
+        "locators": [
+          "Status label",
+          "Scope paragraphs"
+        ],
+        "claims": [
+          "Document remains draft on inspected official page",
+          "Prospective assessment scope differs from trial-entry screening decisions"
+        ],
+        "web_refs": [
+          "turn21view3"
+        ],
+        "evidenceDepth": "Official landing page opened; status and scope inspected"
+      }
+    },
+    {
+      "id": "PSY13",
+      "record": {
+        "id": "PSY13",
+        "title": "NIMH Guidance on Risk-Based Monitoring",
+        "issuer": "National Institute of Mental Health",
+        "date": null,
+        "status": "Official NIMH monitoring guidance, scoped to NIMH-supported research",
+        "url": "https://www.nimh.nih.gov/funding/clinical-research/nimh-guidance-on-risk-based-monitoring",
+        "accessed": "2026-11-13",
+        "depth": "Extensive indexed official page text",
+        "locators": [
+          "Risk definitions",
+          "Monitoring Recommendations Based on Level of Risk"
+        ],
+        "claims": [
+          "Monitoring intensity should follow risk",
+          "PI and IRB responsibilities remain even with additional monitors"
+        ],
+        "web_refs": [
+          "turn6search2"
+        ],
+        "limitations": "Recheck current detailed reporting deadlines before advising an actual study.",
+        "evidenceDepth": "Extensive indexed official page text"
+      }
+    },
+    {
+      "id": "PSY14",
+      "record": {
+        "id": "PSY14",
+        "title": "CONSORT 2010 statement: extension to randomised crossover trials",
+        "issuer": "Dwan et al.; BMJ",
+        "date": "2019-07-31",
+        "status": "Original reporting extension for simple randomized crossover trials",
+        "url": "https://www.bmj.com/content/366/bmj.l4378",
+        "doi": "10.1136/bmj.l4378",
+        "accessed": "2026-11-13",
+        "depth": "Substantial indexed publisher/PDF/PMC excerpts; direct BMJ fetch forbidden and PMC mirror challenged",
+        "locators": [
+          "Randomized sequence",
+          "Carryover and washout discussion",
+          "Within-participant analysis"
+        ],
+        "claims": [
+          "Crossover requires sequence, period, carryover, washout, and within-person considerations",
+          "Persistent effects undermine a simple crossover interpretation"
+        ],
+        "web_refs": [
+          "turn18search0",
+          "turn18search36",
+          "turn18search8"
+        ],
+        "limitations": "No claim of successful full direct fetch; original synthesis extends the persistence logic to psychological learning.",
+        "evidenceDepth": "Substantial indexed publisher/PDF/PMC excerpts; direct BMJ fetch forbidden and PMC mirror challenged"
+      }
+    },
+    {
+      "id": "ST01",
+      "record": {
+        "id": "ST01",
+        "title": "E9(R1) Statistical Principles for Clinical Trials: Addendum: Estimands and Sensitivity Analysis in Clinical Trials",
+        "issuer": "FDA / ICH",
+        "date": "May 2021",
+        "status": "Final FDA guidance; nonbinding recommendations",
+        "url": "https://www.fda.gov/media/148473/download",
+        "alternate_url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/e9r1-statistical-principles-clinical-trials-addendum-estimands-and-sensitivity-analysis-clinical",
+        "inspected_depth": "Final landing page and selected PDF sections inspected",
+        "locator": "A.2–A.5, especially A.3.3 and A.5.2",
+        "supports": "Estimand/estimator distinction; intercurrent events; sensitivity analyses target same estimand; missing outcomes depend on estimand",
+        "web_ref": "turn22view1",
+        "limits": "Search also returned older draft /media/108698; that draft was excluded.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Final landing page and selected PDF sections inspected"
+      }
+    },
+    {
+      "id": "ST02",
+      "record": {
+        "id": "ST02",
+        "title": "Cochrane Handbook Chapter 6: Choosing effect measures and computing estimates of effect",
+        "issuer": "Cochrane",
+        "date": "August 2023; handbook 6.5 (2024)",
+        "status": "Methodological handbook",
+        "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-06",
+        "alternate_url": null,
+        "inspected_depth": "Full page retrieved; relevant sections examined",
+        "locator": "6.1, 6.4, 6.7–6.8",
+        "supports": "Effect metrics; binary, continuous, count, rate, survival distinctions; appropriate uncertainty",
+        "web_ref": "turn19view3",
+        "limits": "Examples and calculations in this module are original, not copied from the handbook.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Full page retrieved; relevant sections examined"
+      }
+    },
+    {
+      "id": "ST03",
+      "record": {
+        "id": "ST03",
+        "title": "Principles of Epidemiology: Lesson 3, Section 5—Measures of Association",
+        "issuer": "CDC",
+        "date": "Archived teaching page; original date not established in retrieved page",
+        "status": "Archived official educational material",
+        "url": "https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson3/section5.html",
+        "alternate_url": null,
+        "inspected_depth": "Substantial search-rendered page excerpts inspected",
+        "locator": "Risk ratio; rate ratio; odds ratio sections",
+        "supports": "Risk/rate/odds definitions and case-control denominator limitations",
+        "web_ref": "turn23search0",
+        "limits": "Archived page, not a current regulatory requirement.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Substantial search-rendered page excerpts inspected"
+      }
+    },
+    {
+      "id": "ST04",
+      "record": {
+        "id": "ST04",
+        "title": "Cochrane Handbook Chapter 15: Interpreting results and drawing conclusions",
+        "issuer": "Cochrane",
+        "date": "August 2023; handbook 6.5 (2024)",
+        "status": "Methodological handbook",
+        "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-15",
+        "alternate_url": null,
+        "inspected_depth": "Full page retrieved; relevant sections examined",
+        "locator": "15.3; 15.4.2–15.4.4.5",
+        "supports": "NNT context and CI discontinuity; distinction between precision and overall certainty",
+        "web_ref": "turn19view5",
+        "limits": "Synthetic NNT examples independently calculated.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Full page retrieved; relevant sections examined"
+      }
+    },
+    {
+      "id": "ST05",
+      "record": {
+        "id": "ST05",
+        "title": "Cochrane Handbook Chapter 10: Analysing data and undertaking meta-analyses",
+        "issuer": "Cochrane",
+        "date": "Current page retrieved 2026-11-13; cite its displayed version when reused",
+        "status": "Methodological handbook",
+        "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-10",
+        "alternate_url": null,
+        "inspected_depth": "Full page retrieved; selected sections inspected",
+        "locator": "10.3–10.4, 10.10–10.14",
+        "supports": "Heterogeneity, prediction intervals, effect-metric choices, missing-data and sensitivity reasoning",
+        "web_ref": "turn19view4",
+        "limits": "No claim that random-effects pooling eliminates bias; no copied numerical example.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Full page retrieved; selected sections inspected"
+      }
+    },
+    {
+      "id": "ST06",
+      "record": {
+        "id": "ST06",
+        "title": "A Look at the Rule of Three",
+        "issuer": "Jovanovic BD and Levy PS / The American Statistician",
+        "date": "1997 (later online date 2012)",
+        "status": "Original methodological article",
+        "url": "https://doi.org/10.1080/00031305.1997.10473947",
+        "alternate_url": null,
+        "inspected_depth": "Publisher abstract retrieved through search",
+        "locator": "Abstract",
+        "supports": "Approximate 3/n bound for zero independent binomial events",
+        "web_ref": "turn26search5",
+        "limits": "Full article not retrieved; exact formula and n=100 calculation derived independently.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Publisher abstract retrieved through search"
+      }
+    },
+    {
+      "id": "ST07",
+      "record": {
+        "id": "ST07",
+        "title": "NIST/SEMATECH e-Handbook: Measures of Location",
+        "issuer": "NIST",
+        "date": "Undated page; accessed 2026-11-13",
+        "status": "Official methodological reference",
+        "url": "https://www.itl.nist.gov/div898/handbook/eda/section3/eda351.htm",
+        "alternate_url": null,
+        "inspected_depth": "Substantial search-rendered page text inspected",
+        "locator": "Definitions of location; why different measures",
+        "supports": "Mean, median, mode and sensitivity to distributions",
+        "web_ref": "turn26search7",
+        "limits": "No distribution simulations or examples copied.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Substantial search-rendered page text inspected"
+      }
+    },
+    {
+      "id": "ST08",
+      "record": {
+        "id": "ST08",
+        "title": "NIST/SEMATECH e-Handbook: Measures of Scale",
+        "issuer": "NIST",
+        "date": "Undated page; accessed 2026-11-13",
+        "status": "Official methodological reference",
+        "url": "https://itl.nist.gov/div898/handbook/eda/section3/eda356.htm",
+        "alternate_url": null,
+        "inspected_depth": "Substantial search-rendered page text inspected",
+        "locator": "Definitions of variability",
+        "supports": "SD, IQR, and distribution-aware spread",
+        "web_ref": "turn23search2",
+        "limits": "Source concerns general statistics, not clinical regulatory standards.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Substantial search-rendered page text inspected"
+      }
+    },
+    {
+      "id": "ST09",
+      "record": {
+        "id": "ST09",
+        "title": "Statistical Techniques, Section 8",
+        "issuer": "NIST",
+        "date": "2019-05-06 document in 2019-05-13 path",
+        "status": "Official methodological reference",
+        "url": "https://www.nist.gov/system/files/documents/2019/05/13/section-8-statistics-techniques-20190506.pdf",
+        "alternate_url": null,
+        "inspected_depth": "Search-rendered PDF excerpt inspected",
+        "locator": "Introduction and 8.1",
+        "supports": "Mean/SD and independence conditions for elementary summaries",
+        "web_ref": "turn23search5",
+        "limits": "SE distinction is elementary mathematical synthesis; source is metrology guidance.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Search-rendered PDF excerpt inspected"
+      }
+    },
+    {
+      "id": "ST10",
+      "record": {
+        "id": "ST10",
+        "title": "Adjusting for Covariates in Randomized Clinical Trials for Drugs and Biological Products",
+        "issuer": "FDA",
+        "date": "May 2023",
+        "status": "Final FDA guidance; nonbinding recommendations",
+        "url": "https://www.fda.gov/media/148910/download",
+        "alternate_url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/adjusting-covariates-randomized-clinical-trials-drugs-and-biological-products",
+        "inspected_depth": "Landing page and PDF content inspected",
+        "locator": "Introduction and recommendations",
+        "supports": "Baseline prognostic covariates improve efficiency; scope excludes observational confounding adjustment",
+        "web_ref": "turn16view1",
+        "limits": "Do not confuse retrieved older continuous-outcome draft with the 2023 final.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Landing page and PDF content inspected"
+      }
+    },
+    {
+      "id": "ST11",
+      "record": {
+        "id": "ST11",
+        "title": "Analysing controlled trials with baseline and follow up measurements",
+        "issuer": "Vickers AJ and Altman DG / BMJ",
+        "date": "10 November 2001",
+        "status": "Original methodological article",
+        "url": "https://doi.org/10.1136/bmj.323.7321.1123",
+        "alternate_url": "https://pubmed.ncbi.nlm.nih.gov/11701584/",
+        "inspected_depth": "Search-rendered original BMJ/PMC excerpts; full text access blocked by 403/CAPTCHA",
+        "locator": "Comparison of follow-up, changes, and ANCOVA",
+        "supports": "ANCOVA efficiency and interpretation of baseline/follow-up trial analysis",
+        "web_ref": "turn14search4",
+        "limits": "Full-text verification remains incomplete; model explanation and synthetic example are original.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Search-rendered original BMJ/PMC excerpts; full text access blocked by 403/CAPTCHA"
+      }
+    },
+    {
+      "id": "ST12",
+      "record": {
+        "id": "ST12",
+        "title": "The use of percentage change from baseline as an outcome in a controlled trial is statistically inefficient: a simulation study",
+        "issuer": "Vickers AJ / BMC Medical Research Methodology",
+        "date": "2001",
+        "status": "Original simulation study",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/11459516/",
+        "alternate_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC34605/",
+        "inspected_depth": "Search-rendered abstract/excerpts; PMC open met CAPTCHA",
+        "locator": "Abstract",
+        "supports": "Comparison of percentage change with follow-up, change-score, and ANCOVA analyses",
+        "web_ref": "turn14search16",
+        "limits": "No numerical simulation findings copied; full text not independently inspected.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Search-rendered abstract/excerpts; PMC open met CAPTCHA"
+      }
+    },
+    {
+      "id": "ST13",
+      "record": {
+        "id": "ST13",
+        "title": "Cochrane Handbook Chapter 23: Including variants on randomized trials",
+        "issuer": "Cochrane",
+        "date": "October 2019; handbook 6.5 (2024)",
+        "status": "Methodological handbook",
+        "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-23",
+        "alternate_url": null,
+        "inspected_depth": "Full page retrieved; 23.1–23.3 examined",
+        "locator": "23.1–23.3",
+        "supports": "Clustering, crossover, carryover, unit of analysis, shared comparator dependence",
+        "web_ref": "turn22view0",
+        "limits": "Design-effect example is original.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Full page retrieved; 23.1–23.3 examined"
+      }
+    },
+    {
+      "id": "ST14",
+      "record": {
+        "id": "ST14",
+        "title": "Multiple Endpoints in Clinical Trials",
+        "issuer": "FDA",
+        "date": "October 2022",
+        "status": "Final FDA guidance; nonbinding recommendations",
+        "url": "https://www.fda.gov/media/162416/download",
+        "alternate_url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/multiple-endpoints-clinical-trials",
+        "inspected_depth": "Landing page and selected final PDF sections inspected",
+        "locator": "II–V and appendix",
+        "supports": "Multiplicity, endpoint hierarchy, and error control",
+        "web_ref": "turn22view2",
+        "limits": "20-test example independently derived under independence; not a reported empirical trial.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Landing page and selected final PDF sections inspected"
+      }
+    },
+    {
+      "id": "ST15",
+      "record": {
+        "id": "ST15",
+        "title": "The Difference Between Significant and Not Significant is not Itself Statistically Significant",
+        "issuer": "Gelman A and Stern H / The American Statistician",
+        "date": "2006",
+        "status": "Original methodological article; author-hosted PDF",
+        "url": "https://sites.stat.columbia.edu/gelman/research/published/signif4.pdf",
+        "alternate_url": "https://doi.org/10.1198/000313006X152649",
+        "inspected_depth": "Author-hosted article text retrieved and introductory examples examined",
+        "locator": "Introduction and section 2",
+        "supports": "Threshold differences do not establish differences between effects",
+        "web_ref": "turn16view6",
+        "limits": "No original numerical examples reproduced.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Author-hosted article text retrieved and introductory examples examined"
+      }
+    },
+    {
+      "id": "ST16",
+      "record": {
+        "id": "ST16",
+        "title": "ASA Releases Statement on Statistical Significance and P-Values",
+        "issuer": "American Statistical Association",
+        "date": "7 March 2016",
+        "status": "Official association statement summary",
+        "url": "https://www.amstat.org/asa/files/pdfs/p-valuestatement.pdf",
+        "alternate_url": null,
+        "inspected_depth": "Entire short release retrieved; six principles inspected",
+        "locator": "Six principles, lines 15–29",
+        "supports": "P-values do not give hypothesis probability, effect size, or clinical importance; full reporting matters",
+        "web_ref": "turn35view0",
+        "limits": "Reference is the official release reproducing principles, not the full journal commentary.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Entire short release retrieved; six principles inspected"
+      }
+    },
+    {
+      "id": "ST17",
+      "record": {
+        "id": "ST17",
+        "title": "Absence of evidence is not evidence of absence",
+        "issuer": "Altman DG and Bland JM / BMJ",
+        "date": "19 August 1995",
+        "status": "Original methodological note",
+        "url": "https://www.bmj.com/content/311/7003/485.full.pdf%2Bhtml",
+        "alternate_url": "https://pubmed.ncbi.nlm.nih.gov/7647644/",
+        "inspected_depth": "Substantial search-rendered original note and PubMed abstract inspected",
+        "locator": "Main text",
+        "supports": "Nonsignificance is not proof of no difference; quantify uncertainty",
+        "web_ref": "turn26search1",
+        "limits": "Do not convert the title into a claim that precise null results never supply evidence against meaningful effects.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Substantial search-rendered original note and PubMed abstract inspected"
+      }
+    },
+    {
+      "id": "ST18",
+      "record": {
+        "id": "ST18",
+        "title": "The Abuse of Power: The Pervasive Fallacy of Power Calculations for Data Analysis",
+        "issuer": "Hoenig JM and Heisey DM / The American Statistician",
+        "date": "February 2001",
+        "status": "Original methodological article; hosted copy",
+        "url": "https://doi.org/10.1198/000313001300339897",
+        "alternate_url": "https://dirnagl.com/wp-content/uploads/2014/07/hoenig-heisey-the-abuse-of-power2001.pdf",
+        "inspected_depth": "Full original PDF text retrieved from hosted copy after publisher 403",
+        "locator": "2.1 Observed Power; discussion",
+        "supports": "Observed post hoc power is an inappropriate interpretation of completed tests; intervals and justified hypotheses are preferable",
+        "web_ref": "turn35view1",
+        "limits": "Official publisher access failed; original article PDF was inspected on a third-party academic site.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Full original PDF text retrieved from hosted copy after publisher 403"
+      }
+    },
+    {
+      "id": "ST19",
+      "record": {
+        "id": "ST19",
+        "title": "Clinician-Reported Outcome Assessments of Treatment Benefit: Report of the ISPOR Clinical Outcome Assessment Emerging Good Practices Task Force",
+        "issuer": "Powers JH III et al. / Value in Health",
+        "date": "January 2017",
+        "status": "Original methodological task-force report; author manuscript hosted by FDA",
+        "url": "https://www.fda.gov/media/116285/download",
+        "alternate_url": "https://doi.org/10.1016/j.jval.2016.11.005",
+        "inspected_depth": "Original manuscript retrieved; measurement practice 7 text inspected",
+        "locator": "Good Measurement Practice 7",
+        "supports": "Meaningful individual change, between-group differences, and context of use",
+        "web_ref": "turn35view4",
+        "limits": "FDA hosting does not make this journal article FDA guidance.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Original manuscript retrieved; measurement practice 7 text inspected"
+      }
+    },
+    {
+      "id": "ST20",
+      "record": {
+        "id": "ST20",
+        "title": "Patient-Focused Drug Development: Incorporating Clinical Outcome Assessments Into Endpoints for Regulatory Decision-Making",
+        "issuer": "FDA",
+        "date": "April 2023",
+        "status": "Draft; not for implementation as retrieved 2026-11-13",
+        "url": "https://www.fda.gov/media/166830/download",
+        "alternate_url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/patient-focused-drug-development-incorporating-clinical-outcome-assessments-endpoints-regulatory",
+        "inspected_depth": "Landing status and original draft PDF text inspected",
+        "locator": "Meaningful score differences and interpretation sections",
+        "supports": "Patient-centered meaningfulness and threshold assumptions",
+        "web_ref": "turn35view3",
+        "limits": "Explicitly draft; recheck current status before reliance.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Landing status and original draft PDF text inspected"
+      }
+    },
+    {
+      "id": "ST21",
+      "record": {
+        "id": "ST21",
+        "title": "Use of Bayesian Methodology in Clinical Trials of Drug and Biological Products",
+        "issuer": "FDA",
+        "date": "January 2026",
+        "status": "Draft; not for implementation as retrieved 2026-11-13",
+        "url": "https://www.fda.gov/media/190505/download",
+        "alternate_url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/use-bayesian-methodology-clinical-trials-drug-and-biological-products",
+        "inspected_depth": "Landing page and selected draft PDF sections inspected",
+        "locator": "IV–VI, especially V priors and sensitivity",
+        "supports": "Prespecified priors, operating characteristics, prior-data conflict, sensitivity, borrowing",
+        "web_ref": "turn22view3",
+        "limits": "Not final guidance; methodological analysis should not assert regulatory authorization.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Landing page and selected draft PDF sections inspected"
+      }
+    },
+    {
+      "id": "ST22",
+      "record": {
+        "id": "ST22",
+        "title": "Adaptive Design Clinical Trials for Drugs and Biologics",
+        "issuer": "FDA",
+        "date": "December 2019",
+        "status": "Final FDA guidance; nonbinding recommendations",
+        "url": "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/adaptive-design-clinical-trials-drugs-and-biologics-guidance-industry",
+        "alternate_url": null,
+        "inspected_depth": "Official landing page and search-rendered summary inspected",
+        "locator": "Scope and principles of design/conduct/reporting",
+        "supports": "Adaptive designs require appropriate design and analysis, including simulation for complex designs",
+        "web_ref": "turn35view5",
+        "limits": "Detailed design-specific evaluation requires reading full current guidance and trial protocol.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Official landing page and search-rendered summary inspected"
+      }
+    },
+    {
+      "id": "ST23",
+      "record": {
+        "id": "ST23",
+        "title": "Cochrane Handbook Chapter 13: Assessing risk of bias due to missing evidence in a meta-analysis",
+        "issuer": "Cochrane",
+        "date": "August 2024; handbook 6.5 (2024)",
+        "status": "Methodological handbook",
+        "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-13",
+        "alternate_url": null,
+        "inspected_depth": "Full page retrieved; key sections and asymmetry guidance inspected",
+        "locator": "13.2–13.3.5",
+        "supports": "Missing results, registry/protocol comparisons, multiple causes of funnel asymmetry, ten-study rule of thumb",
+        "web_ref": "turn16view7",
+        "limits": "No ROB-ME questions or scoring algorithm reproduced; checklist is original.",
+        "accessed": "2026-11-13",
+        "evidenceDepth": "Full page retrieved; key sections and asymmetry guidance inspected"
+      }
+    },
+    {
+      "id": "EA01",
+      "record": {
+        "id": "EA01",
+        "title": "CONSORT–SPIRIT official reporting standards",
+        "url": "https://www.consort-spirit.org/",
+        "evidenceDepth": "Official site scope, current 2025 versions",
+        "accessDate": "2026-11-13"
+      }
+    },
+    {
+      "id": "EA02",
+      "record": {
+        "id": "EA02",
+        "title": "Cochrane About RoB 2",
+        "url": "https://www.cochrane.org/learn/courses-and-resources/cochrane-methodology/risk-bias/about-risk-bias-2-rob-2",
+        "evidenceDepth": "Official methods page; design variants",
+        "accessDate": "2026-11-13"
+      }
+    },
+    {
+      "id": "EA03",
+      "record": {
+        "id": "EA03",
+        "title": "ROBINS-I V2",
+        "url": "https://www.riskofbias.info/welcome/robins-i-v2",
+        "evidenceDepth": "Official page; November 2025 version remains draft",
+        "accessDate": "2026-11-13"
+      }
+    },
+    {
+      "id": "EA04",
+      "record": {
+        "id": "EA04",
+        "title": "Cochrane Handbook chapter 14",
+        "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-14",
+        "evidenceDepth": "Official chapter, certainty domains",
+        "accessDate": "2026-11-13"
+      }
+    },
+    {
+      "id": "API-CTG",
+      "record": {
+        "id": "API-CTG",
+        "title": "ClinicalTrials.gov API",
+        "url": "https://clinicaltrials.gov/data-api/api",
+        "evidenceDepth": "Official API documentation and live query",
+        "accessDate": "2026-11-13"
+      }
+    },
+    {
+      "id": "API-NLM",
+      "record": {
+        "id": "API-NLM",
+        "title": "ClinicalTrials.gov screen scraping guidance",
+        "url": "https://www.nlm.nih.gov/pubs/techbull/ja25/ja25_clinical_trials_screen-scraping.html",
+        "evidenceDepth": "Official NLM technical bulletin",
+        "accessDate": "2026-11-13"
+      }
+    },
+    {
+      "id": "API-NCBI",
+      "record": {
+        "id": "API-NCBI",
+        "title": "NCBI E-utilities reference",
+        "url": "https://www.ncbi.nlm.nih.gov/books/NBK25499/",
+        "evidenceDepth": "Official API documentation and live queries",
+        "accessDate": "2026-11-13"
+      }
+    },
+    {
+      "id": "API-CITE",
+      "record": {
+        "id": "API-CITE",
+        "title": "NCBI citation and cited-by services",
+        "url": "https://pmc.ncbi.nlm.nih.gov/tools/cites-citedby/",
+        "evidenceDepth": "Official indexed citation documentation and live references/cited-by checks",
+        "accessDate": "2026-11-13"
+      }
+    }
+  ],
+  "citationEdges": [
+    {
+      "fromId": "doi:10.1056/NEJMoa012512",
+      "toId": "doi:10.1056/NEJM200105033441801",
+      "claim": "Prior randomized lifestyle evidence supported the prevention hypothesis. — Do not mark a fully verified bibliography edge until source reference entry is retrieved.",
+      "locator": "Introduction: prior diet/exercise trials; Discussion: Finnish lifestyle comparison | Reference 8 | Body superscript 8 observed in original-paper/indexed publisher text; Finnish original abstract opened. Full reference-list identification still requires direct confirmation. | Target review: abstract",
+      "depth": 1,
+      "status": "partial"
+    },
+    {
+      "fromId": "doi:10.1001/jama.288.23.2981",
+      "toId": "doi:10.1016/0895-7061(96)00037-4",
+      "claim": "Original trial rationale and planned active comparisons. — The four-arm design publication precedes termination of the doxazosin arm; it is not the final three-arm sample.",
+      "locator": "Methods, Study Participants; References no. 18 | Reference 18 | Target review: abstract",
+      "depth": 1,
+      "status": "verified"
+    },
+    {
+      "fromId": "doi:10.1001/jama.288.3.321",
+      "toId": "doi:10.1001/jama.280.7.605",
+      "claim": "Earlier randomized secondary-prevention evidence failed to show overall coronary benefit. — Established CHD population differs from the WHI prevention question.",
+      "locator": "Introduction and Comment (primary versus secondary prevention); References no. 10 | Reference 10 | Target review: full-text relevant sections",
+      "depth": 1,
+      "status": "verified"
+    },
+    {
+      "fromId": "doi:10.1001/jama.280.7.605",
+      "toId": "doi:10.1001/jama.1995.03520270033028",
+      "claim": "MPA attenuated estrogen-associated HDL increase more than micronized progesterone in PEPI. — A biomarker effect does not establish clinical CHD benefit; PEPI erratum needs inspection.",
+      "locator": "Comment, Effects of Progestin; References no. 31 | Reference 31 | Target review: abstract",
+      "depth": 2,
+      "status": "partial"
+    },
+    {
+      "fromId": "catie-2005",
+      "toId": "kane-1988",
+      "claim": "Background on atypical antipsychotic efficacy — Supports a narrow refractory-clozapine example, not universal superiority of atypical drugs.",
+      "locator": "Reference 2; introduction | Target review: abstract",
+      "depth": 1,
+      "status": "verified"
+    },
+    {
+      "fromId": "tads-2004",
+      "toId": "emslie-1997",
+      "claim": "Prior pediatric fluoxetine evidence — Supports earlier acute placebo-controlled evidence, not long-term safety or all antidepressants.",
+      "locator": "Reference 11; introduction | Target review: abstract",
+      "depth": 1,
+      "status": "verified"
+    },
+    {
+      "fromId": "combine-2006",
+      "toId": "omalley-2003",
+      "claim": "Counseling context and naltrexone maintenance — Relevant sequential responder evidence; differing significant/non-significant subgroup results alone do not prove interaction.",
+      "locator": "Reference 59; discussion paragraph beginning 'Our results, however' | Target review: full text",
+      "depth": 1,
+      "status": "verified"
+    },
+    {
+      "fromId": "omalley-2003",
+      "toId": "volpicelli-1992",
+      "claim": "Earlier controlled naltrexone evidence — Supports short-term adjunctive evidence in men; not the later maintenance design itself.",
+      "locator": "Reference 8; introduction naltrexone evidence | Target review: abstract",
+      "depth": 2,
+      "status": "verified"
+    },
+    {
+      "fromId": "mta-1999",
+      "toId": "gillberg-1997",
+      "claim": "Earlier extended stimulant evidence — Swedish placebo study provides background; it does not compare medication against a multimodal behavioral program.",
+      "locator": "Reference 9; introductory treatment-evidence discussion | Target review: abstract",
+      "depth": 1,
+      "status": "verified"
+    }
+  ]
+}

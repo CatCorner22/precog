@@ -34,6 +34,12 @@ const modules = [
     action: "Open the desk",
     href: "/desk",
   },
+  {
+    name: "Study evaluator",
+    description: "Check study numbers, design flaws, and evidence grades.",
+    action: "Open the evaluator",
+    href: "/evidence",
+  },
 ];
 
 function BlakeGPTHome() {

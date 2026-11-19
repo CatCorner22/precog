@@ -1,5 +1,8 @@
 {
   "src/lib/compliance/cards-server.ts#searchComplianceCardsFn": "3a8fc6acee046d48318be6b7d81570d9f1cb195d0f30ff93f7335ff5f83fcc45",
+  "src/lib/evidence/reference-server.ts#getEvidenceModule": "ff1e4324cfd3054687ae76e49f6f56573b100f4affecd7d650718c9c0b178929",
+  "src/lib/evidence/reference-server.ts#listBenchmarkStudies": "56284851d7aff9ccb51c8e3880ff41a95a871f0ff74bb2761e070860731f48a7",
+  "src/lib/evidence/reference-server.ts#listEvidenceModules": "cbffe7aac28bca1f542f9fbdb934fb89249eae0cfb36430e08a7fb9999491ff7",
   "src/lib/precog/account-server.ts#deleteAccount": "1ef1d1b2af7c79a25443d7717538dfe8aa1ec87efe36909bfcc028e9fbe3098f",
   "src/lib/precog/account-server.ts#exportAccountDataPage": "0f2baac3bb2e2a3a25153a30ce9f2adf93cac55c0643574edd0ce70298af1cb9",
   "src/lib/precog/account-server.ts#exportBusinessHistory": "b54a7720b096eb36dd05d2d6523019eaa25207b1321a874408850c11b3111b1a",
