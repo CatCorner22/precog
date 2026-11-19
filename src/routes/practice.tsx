@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { buttonClass } from "@/components/ui/button-variants";
 import {
@@ -29,21 +29,37 @@ function PracticeDesk() {
   const [expandedSectionId, setExpandedSectionId] = useState<number | null>(null);
   const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const requestId = useRef(0);
   const selected = functions.find((item) => item.id === selectedId) ?? functions[0];
 
   async function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!query.trim()) {
+      requestId.current += 1;
       setResults([]);
       setSearched(false);
+      setSearchError(null);
+      setSearching(false);
       return;
     }
+    const currentRequest = ++requestId.current;
     setSearching(true);
+    setSearchError(null);
+    setResults([]);
+    setSearched(false);
     try {
-      setResults(await searchPracticeReferenceFn({ data: { query } }));
+      const found = await searchPracticeReferenceFn({ data: { query } });
+      if (currentRequest !== requestId.current) return;
+      setResults(found);
       setSearched(true);
+    } catch {
+      if (currentRequest !== requestId.current) return;
+      setResults([]);
+      setSearched(false);
+      setSearchError("Search is unavailable right now. Try again.");
     } finally {
-      setSearching(false);
+      if (currentRequest === requestId.current) setSearching(false);
     }
   }
 
@@ -140,53 +156,59 @@ function PracticeDesk() {
             </button>
           </div>
         </form>
-        {searched && (
-          <div className="mt-5 space-y-3" aria-live="polite">
-            {results.length ? (
-              results.map((result) => {
-                const section = sections.find((item) => item.id === result.id);
-                const expanded = expandedSectionId === result.id;
-                return (
-                  <article
-                    key={result.id}
-                    className="rounded-xl border border-border bg-elevated p-4"
-                  >
-                    <h3 className="text-sm font-semibold">
-                      §{result.id} · {result.title}
-                    </h3>
-                    <p className="mt-2 text-sm leading-6 text-muted">{result.excerpt}</p>
-                    {section && (
-                      <>
-                        <button
-                          type="button"
-                          aria-expanded={expanded}
-                          aria-controls={`practice-search-section-${result.id}`}
-                          onClick={() => {
-                            if (functions.some((item) => item.id === result.id)) {
-                              setSelectedId(result.id);
-                            }
-                            setExpandedSectionId(expanded ? null : result.id);
-                          }}
-                          className="mt-3 text-sm font-medium text-primary underline-offset-4 hover:underline"
-                        >
-                          {expanded ? "Hide full section" : "Show full section"}
-                        </button>
-                        <p
-                          id={`practice-search-section-${result.id}`}
-                          hidden={!expanded}
-                          className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted"
-                        >
-                          {section.text}
-                        </p>
-                      </>
-                    )}
-                  </article>
-                );
-              })
-            ) : (
-              <p className="text-sm text-muted">No matching section found.</p>
-            )}
-          </div>
+        {searchError ? (
+          <p className="mt-5 text-sm text-muted" role="alert">
+            {searchError}
+          </p>
+        ) : (
+          searched && (
+            <div className="mt-5 space-y-3" aria-live="polite">
+              {results.length ? (
+                results.map((result) => {
+                  const section = sections.find((item) => item.id === result.id);
+                  const expanded = expandedSectionId === result.id;
+                  return (
+                    <article
+                      key={result.id}
+                      className="rounded-xl border border-border bg-elevated p-4"
+                    >
+                      <h3 className="text-sm font-semibold">
+                        §{result.id} · {result.title}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-muted">{result.excerpt}</p>
+                      {section && (
+                        <>
+                          <button
+                            type="button"
+                            aria-expanded={expanded}
+                            aria-controls={`practice-search-section-${result.id}`}
+                            onClick={() => {
+                              if (functions.some((item) => item.id === result.id)) {
+                                setSelectedId(result.id);
+                              }
+                              setExpandedSectionId(expanded ? null : result.id);
+                            }}
+                            className="mt-3 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                          >
+                            {expanded ? "Hide full section" : "Show full section"}
+                          </button>
+                          <p
+                            id={`practice-search-section-${result.id}`}
+                            hidden={!expanded}
+                            className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted"
+                          >
+                            {section.text}
+                          </p>
+                        </>
+                      )}
+                    </article>
+                  );
+                })
+              ) : (
+                <p className="text-sm text-muted">No matching section found.</p>
+              )}
+            </div>
+          )
         )}
       </section>
 
