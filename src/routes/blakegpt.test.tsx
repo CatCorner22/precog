@@ -61,6 +61,6 @@ describe("BlakeGPT home", () => {
       '<img src="/reverie/reverie-friendly-face.webp" alt="Reverie smiles in welcome." width="512" height="512"',
     );
     expect(html).toContain('aria-label="BlakeGPT modules"');
-    expect(html).toContain("lg:grid-cols-5");
+    expect(html).toContain("sm:grid-cols-2 lg:grid-cols-3");
   });
 });

@@ -82,7 +82,7 @@ function BlakeGPTHome() {
 
       <section
         aria-label="BlakeGPT modules"
-        className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-5"
+        className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
       >
         {modules.map((module) => (
           <article
