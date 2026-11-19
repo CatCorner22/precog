@@ -78,6 +78,11 @@ function EmailPasswordForm({ searchError }: { searchError?: string }) {
   );
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -204,7 +209,7 @@ function EmailPasswordForm({ searchError }: { searchError?: string }) {
           : "Email and password";
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-3">
+    <form method="post" onSubmit={submit} className="mt-6 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium tracking-wide text-muted uppercase">{heading}</p>
         {mode !== "reset" && (
@@ -274,7 +279,7 @@ function EmailPasswordForm({ searchError }: { searchError?: string }) {
           {error}
         </p>
       )}
-      <Button type="submit" className="w-full" disabled={busy}>
+      <Button type="submit" className="w-full" disabled={busy || !hydrated}>
         {busy
           ? "One moment…"
           : mode === "create"
