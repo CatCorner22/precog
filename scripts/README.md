@@ -44,6 +44,11 @@ and needs `npx playwright install --with-deps chromium` once.
 | `serve-built-test.mjs`   | CI `account-safety`                                | Serves the compiled Vercel handler on port 8080 for the suites above.                                                        |
 | `lib/`                   | the suites                                         | `e2e.mjs` (browser page, waits, storage key), `steps.mjs` (step log, `eventually`), `server-fn-id.mjs`, `auth-test-env.mjs`. |
 
+`node scripts/e2e-money-checks.mjs [baseUrl]` runs the guest Money checks flow:
+uploads the committed CSV fixtures, runs checks, validates and saves an explanation,
+then reloads to confirm persistence without raw rows. Run locally with a dev server;
+`E2E_MONEY_SCREENSHOT` optionally saves the verified screen as a PNG.
+
 ## Platform tools
 
 Used by the app-builder sandbox, not by CI.
