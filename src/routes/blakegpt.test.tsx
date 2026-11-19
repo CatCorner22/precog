@@ -38,15 +38,18 @@ describe("BlakeGPT home", () => {
     expect(html).toContain("Welcome, Amanda. Your practice has a clear place to begin.");
   });
 
-  it("offers the three modules and resolves Frontier GRC to Voyager's real tab", () => {
+  it("offers the four modules and resolves Frontier GRC to Voyager's real tab", () => {
+    expect(html.match(/<article\b/g)).toHaveLength(4);
     expect(html).toContain("Internal controls and continuity for the practice.");
     expect(html).toContain(
       "Checks for invoices, notice deadlines, duty conflicts and policy wording.",
     );
     expect(html).toContain("Cited Tennessee and federal rules for the dental office.");
+    expect(html).toContain("Check study numbers, design flaws, and evidence grades.");
     expect(html).toMatch(/href="\/"[^>]*>Open Precog<\/a>/);
     expect(html).toMatch(/href="\/\?tab=pioneer"[^>]*>Open checks<\/a>/);
     expect(html).toMatch(/href="\/desk"[^>]*>Open the desk<\/a>/);
+    expect(html).toMatch(/href="\/evidence"[^>]*>Open the evaluator<\/a>/);
   });
 
   it("uses Reverie's unaltered hero art and a phone-to-desktop card grid", () => {
