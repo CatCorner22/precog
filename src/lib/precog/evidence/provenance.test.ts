@@ -92,6 +92,79 @@ describe("fraud statistics", () => {
 });
 
 describe("retrieval corpus", () => {
+  const controls = [
+    "iia-three-lines",
+    "control-prevent-detect",
+    "control-hard-soft",
+    "deficiency-severity",
+    "cycle-revenue-completeness",
+    "cycle-close-estimates",
+    "cycle-it-report-quality",
+    "fraud-receipts-schemes",
+    "fraud-warning-signs-context",
+  ];
+  const methods = [
+    "analytics-reconciliation-passes",
+    "analytics-duplicate-tiers",
+    "analytics-benford-limits",
+    "analytics-splitting-limits",
+    "analytics-number-sequences",
+    "analytics-suspense-aging",
+  ];
+  it("traces new control guidance to primary publishers, not the source compilation", () => {
+    const hosts = new Set([
+      "www.theiia.org",
+      "www.gao.gov",
+      "www.coso.org",
+      "pcaobus.org",
+      "www.acfe.com",
+    ]);
+    for (const id of controls) {
+      const chunk = KNOWLEDGE_CORPUS.find((c) => c.id === id)!;
+      expect(chunk, id).toBeDefined();
+      expect(chunk.basis.kind, id).toBe("cited");
+      if (chunk.basis.kind !== "cited") continue;
+      expect(hosts.has(new URL(chunk.basis.url).hostname), id).toBe(true);
+      expect(chunk.basis.publisher, id).toBeTruthy();
+      expect(chunk.basis.document, id).toBeTruthy();
+      expect(chunk.basis.document, id).not.toContain("Knowledge Base");
+    }
+  });
+  it("keeps analytics methodology distinct from cited requirements and follows product wording", () => {
+    for (const id of methods) {
+      const chunk = KNOWLEDGE_CORPUS.find((c) => c.id === id)!;
+      expect(chunk.basis.kind, id).toBe("practice");
+      if (chunk.basis.kind === "practice") expect(chunk.basis.note, id).toBeTruthy();
+    }
+    for (const id of [...controls, ...methods]) {
+      const chunk = KNOWLEDGE_CORPUS.find((c) => c.id === id)!;
+      expect(`${chunk.title} ${chunk.text}`, id).not.toMatch(
+        /\bshould\b|e\.g\.|the app\b|\bbackup\b/i,
+      );
+      expect(chunk.industry, id).toBeUndefined();
+    }
+  });
+  it("adds only missing topics and preserves the established framework and cycle chunks", () => {
+    for (const id of [
+      "coso-17-principles",
+      "green-book-documentation",
+      "vendor-master",
+      "smb-bank-rec-owner",
+      "payroll-change-controls",
+      "logical-access-leavers",
+      "system-change-management",
+    ])
+      expect(KNOWLEDGE_CORPUS.filter((c) => c.id === id)).toHaveLength(1);
+    expect(KNOWLEDGE_CORPUS.find((c) => c.id === "sod-small-team-practice")?.text).toContain(
+      "comparable coverage and precision",
+    );
+    expect(KNOWLEDGE_CORPUS.find((c) => c.id === "deficiency-severity")?.text).toContain(
+      "do not make these ICFR determinations",
+    );
+    expect(KNOWLEDGE_CORPUS.find((c) => c.id === "analytics-suspense-aging")?.text).toContain(
+      "not the account's current balance",
+    );
+  });
   it("declares a basis on every chunk, cites only real cases, and links over https", () => {
     for (const chunk of KNOWLEDGE_CORPUS) {
       expect(chunk.basis, chunk.id).toBeTruthy();

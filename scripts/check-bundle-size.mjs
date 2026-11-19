@@ -273,6 +273,11 @@
  * 929.4 KB gzipped in 148 chunks. Raise the total budget from 929 KB to
  * 932 KB, the next whole KB above the measurement plus 2 KB of CI variation.
  * The largest chunk remains below 118 KB.
+ *
+ * 2026-11-19: deduplicated control and reconciliation knowledge adds about
+ * 2.9 KB gzipped to the client corpus. With the latest main, the build
+ * measures 934.8 KB total. Raise the total budget from 932 KB to 937 KB,
+ * the next whole KB plus 2 KB of CI variation; keep the 118 KB chunk limit.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -288,7 +293,7 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 // the largest chunk was unchanged.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 932 * 1024,
+  totalGzipBytes: 937 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
