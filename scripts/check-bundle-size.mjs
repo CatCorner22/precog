@@ -273,6 +273,11 @@
  * plus about 0.5 KB in practice-profile for money-check normalization.
  * Raise only the total budget from 929 KB to 940 KB for this screen;
  * the 118 KB largest-chunk budget stays unchanged.
+ *
+ * 2026-11-19: combining the Study evaluator and Practice desk routes measures
+ * 929.4 KB gzipped in 148 chunks. Raise the total budget from 929 KB to
+ * 932 KB, the next whole KB above the measurement plus 2 KB of CI variation.
+ * The largest chunk remains below 118 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -288,7 +293,10 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 // the largest chunk was unchanged.
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 940 * 1024,
+  // 2026-11-19: Voyager's read-only money tools and saved skipped-check
+  // metadata, combined with latest main's reference routes, measure
+  // 942.1 KB total. Allow the next whole KB plus 2 KB of CI variation.
+  totalGzipBytes: 945 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

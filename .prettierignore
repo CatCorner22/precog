@@ -5,5 +5,8 @@ AGENTS.md
 .output
 dist
 node_modules
+.agent/
 knowledge/compliance/
+knowledge/practice/practice-desk-reference.md
 knowledge/evidence/
+knowledge/licenses/

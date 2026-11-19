@@ -305,6 +305,7 @@ const pioneerProfileSchema = z.looseObject({
   plannedAbsences: z.nullish(list(z.unknown(), PIONEER_LIST_CAPS.absences)),
   // Links only (id, title, register items); rebuilt field by field downstream.
   procedureLinks: z.nullish(list(z.unknown(), PIONEER_LIST_CAPS.procedures)),
+  moneyChecks: z.optional(z.unknown()),
 });
 
 const pioneerSchema = z.object({

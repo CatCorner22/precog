@@ -4,6 +4,8 @@
 import type { ContinuityStep } from "../decisions/follow-through";
 
 export type ToolName =
+  | "money_checks_summary"
+  | "explain_money_check"
   | "get_practice_snapshot"
   | "get_coso_assessment"
   | "get_residual_portfolio"
