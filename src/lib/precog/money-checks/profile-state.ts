@@ -3,7 +3,7 @@ import { isCalendarDate } from "../dates";
 import { isRecord } from "../profile-entries";
 import type { PracticeProfile } from "../practice-profile";
 import type { ReconciliationSignoff } from "./all-checks";
-import type { CheckKey, runChecks } from "./detect";
+import type { CheckKey, SkippedCheck, runChecks } from "./detect";
 import { applyRun, CLOSED_REASON, explainFinding, trimLedger, type LedgerRow } from "./ledger";
 
 export interface ChannelSignoff {
@@ -15,6 +15,7 @@ export interface ChannelSignoff {
 }
 export interface MoneyChecksState {
   lastRun?: string;
+  skipped?: Omit<SkippedCheck, "sourceRow">[];
   ledger: LedgerRow[];
   reconciliationSignoffs: ReconciliationSignoff[];
   channelSignoffs: ChannelSignoff[];
@@ -105,6 +106,23 @@ export function normalizeMoneyChecks(value: unknown): MoneyChecksState | undefin
   });
   return {
     ...(day(value.lastRun) ? { lastRun: value.lastRun } : {}),
+    ...(Array.isArray(value.skipped)
+      ? {
+          skipped: unique(
+            entries<Omit<SkippedCheck, "sourceRow">>(value.skipped, (v) => {
+              const check = CHECKS.find((c) => c === v.check);
+              return check && text(v.missingColumn)
+                ? {
+                    check,
+                    missingColumn: text(v.missingColumn),
+                    ...(text(v.reason) ? { reason: text(v.reason) } : {}),
+                  }
+                : undefined;
+            }),
+            (r) => JSON.stringify([r.check, r.missingColumn, r.reason ?? ""]),
+          ),
+        }
+      : {}),
     ledger: trimLedger(unique(ledger, (r) => r.id)),
     reconciliationSignoffs: unique(reconciliationSignoffs, (r) => r.month),
     channelSignoffs: unique(channelSignoffs, (r) => `${r.month}:${r.channel}`),
@@ -124,7 +142,12 @@ export function withMoneyRun(
   const state = stateFor(p);
   return {
     ...p,
-    moneyChecks: { ...state, lastRun: today, ledger: applyRun(state.ledger, result, today) },
+    moneyChecks: {
+      ...state,
+      lastRun: today,
+      skipped: normalizeMoneyChecks({ skipped: result.skipped })!.skipped,
+      ledger: applyRun(state.ledger, result, today),
+    },
   };
 }
 export function withFindingExplanation(
