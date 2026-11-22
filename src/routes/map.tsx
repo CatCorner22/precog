@@ -33,7 +33,9 @@ function OfficeMapRoute() {
 
 export function OfficeMapPage({ map }: { map: OfficeMapData }) {
   const [selection, setSelection] = useState<MapSelection | null>(null);
+  const [focused, setFocused] = useState<MapSelection | null>(null);
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
+  const highlight = focused ?? selection;
   const selectedLicense =
     selection?.type === "license"
       ? map.licenses.find((node) => node.id === selection.id)
@@ -48,18 +50,32 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
   const selectedTerms = new Set(
     selectedTopic ? [selectedTopic.term] : (selectedNode?.topics ?? []),
   );
+  const highlightedLicense =
+    highlight?.type === "license"
+      ? map.licenses.find((node) => node.id === highlight.id)
+      : undefined;
+  const highlightedArea =
+    highlight?.type === "area" ? map.areas.find((node) => node.id === highlight.id) : undefined;
+  const highlightedTopic =
+    highlight?.type === "topic"
+      ? map.topics.find((topic) => topic.term === highlight.id)
+      : undefined;
+  const highlightedNode = highlightedLicense ?? highlightedArea;
+  const highlightedTerms = new Set(
+    highlightedTopic ? [highlightedTopic.term] : (highlightedNode?.topics ?? []),
+  );
   const connectedLicenses = new Set(
-    selection?.type === "license"
-      ? [selection.id]
-      : selection?.type === "topic"
-        ? map.licenses.filter((node) => node.topics.includes(selection.id)).map((node) => node.id)
+    highlight?.type === "license"
+      ? [highlight.id]
+      : highlight?.type === "topic"
+        ? map.licenses.filter((node) => node.topics.includes(highlight.id)).map((node) => node.id)
         : [],
   );
   const connectedAreas = new Set(
-    selection?.type === "area"
-      ? [selection.id]
-      : selection?.type === "topic"
-        ? map.areas.filter((node) => node.topics.includes(selection.id)).map((node) => node.id)
+    highlight?.type === "area"
+      ? [highlight.id]
+      : highlight?.type === "topic"
+        ? map.areas.filter((node) => node.topics.includes(highlight.id)).map((node) => node.id)
         : [],
   );
   const selectedTopics = map.topics.filter((topic) => selectedTerms.has(topic.term));
@@ -93,10 +109,14 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
   const areaWidth = 236;
 
   function nodeClass(isSelected: boolean, isConnected: boolean) {
-    if (isSelected) return "border-primary bg-primary text-primary-fg";
-    if (isConnected) return "border-primary bg-elevated text-fg";
-    if (selection) return "border-border bg-surface text-muted opacity-40";
-    return "border-border-strong bg-surface text-fg";
+    const stateClass = isSelected
+      ? "border-primary bg-primary text-primary-fg"
+      : isConnected
+        ? "border-primary bg-elevated text-fg"
+        : highlight
+          ? "border-border bg-surface text-muted opacity-40"
+          : "border-border-strong bg-surface text-fg";
+    return `${stateClass} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary`;
   }
 
   function renderGroupedNodes(nodes: ResolvedMapNode[], type: MapNodeType) {
@@ -104,6 +124,7 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
       const key = `${type}:${node.id}`;
       const expanded = expandedNode === key;
       const selected = selection?.type === type && selection.id === node.id;
+      const highlightedNode = highlight?.type === type && highlight.id === node.id;
       const connected =
         type === "license" ? connectedLicenses.has(node.id) : connectedAreas.has(node.id);
       return (
@@ -112,13 +133,14 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
             type="button"
             aria-pressed={selected}
             aria-expanded={expanded}
-            onFocus={() => setSelection({ type, id: node.id })}
+            onFocus={() => setFocused({ type, id: node.id })}
+            onBlur={() => setFocused(null)}
             onClick={() => {
               setSelection({ type, id: node.id });
               setExpandedNode(expanded ? null : key);
             }}
             className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-semibold ${nodeClass(
-              selected,
+              highlightedNode,
               connected,
             )}`}
           >
@@ -134,10 +156,11 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
                     <button
                       type="button"
                       aria-pressed={selection?.type === "topic" && selection.id === topic.term}
-                      onFocus={() => setSelection({ type: "topic", id: topic.term })}
+                      onFocus={() => setFocused({ type: "topic", id: topic.term })}
+                      onBlur={() => setFocused(null)}
                       onClick={() => setSelection({ type: "topic", id: topic.term })}
                       className={`rounded-md px-2 py-1 text-left text-sm font-medium ${nodeClass(
-                        selection?.type === "topic" && selection.id === topic.term,
+                        highlight?.type === "topic" && highlight.id === topic.term,
                         selectedTerms.has(topic.term),
                       )}`}
                     >
@@ -174,10 +197,11 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
             <button
               type="button"
               aria-pressed={selection?.type === "topic" && selection.id === topic.term}
-              onFocus={() => setSelection({ type: "topic", id: topic.term })}
+              onFocus={() => setFocused({ type: "topic", id: topic.term })}
+              onBlur={() => setFocused(null)}
               onClick={() => setSelection({ type: "topic", id: topic.term })}
               className={`rounded-md px-2 py-1 text-left text-sm ${nodeClass(
-                selection?.type === "topic" && selection.id === topic.term,
+                highlight?.type === "topic" && highlight.id === topic.term,
                 selectedTerms.has(topic.term),
               )}`}
             >
@@ -237,16 +261,16 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
                   const y1 = licenseY.get(license.id) ?? padding;
                   const y2 = topicY.get(term) ?? padding;
                   const active =
-                    selection?.type === "license"
-                      ? selection.id === license.id && selectedTerms.has(term)
-                      : selection?.type === "topic" && selection.id === term;
+                    highlight?.type === "license"
+                      ? highlight.id === license.id && highlightedTerms.has(term)
+                      : highlight?.type === "topic" && highlight.id === term;
                   return (
                     <path
                       key={`license-${license.id}-${term}`}
                       d={`M ${leftX + leftWidth} ${y1} C 320 ${y1}, 340 ${y2}, ${topicX} ${y2}`}
                       fill="none"
                       stroke={active ? "var(--color-primary)" : "var(--color-border-strong)"}
-                      strokeOpacity={selection && !active ? 0.2 : 0.58}
+                      strokeOpacity={highlight && !active ? 0.2 : 0.58}
                       strokeWidth={active ? 2.4 : 1.2}
                     />
                   );
@@ -257,16 +281,16 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
                   const y1 = topicY.get(term) ?? padding;
                   const y2 = areaY.get(area.id) ?? padding;
                   const active =
-                    selection?.type === "area"
-                      ? selection.id === area.id && selectedTerms.has(term)
-                      : selection?.type === "topic" && selection.id === term;
+                    highlight?.type === "area"
+                      ? highlight.id === area.id && highlightedTerms.has(term)
+                      : highlight?.type === "topic" && highlight.id === term;
                   return (
                     <path
                       key={`area-${area.id}-${term}`}
                       d={`M ${topicX + topicWidth} ${y1} C 772 ${y1}, 824 ${y2}, ${areaX} ${y2}`}
                       fill="none"
                       stroke={active ? "var(--color-primary)" : "var(--color-border-strong)"}
-                      strokeOpacity={selection && !active ? 0.2 : 0.58}
+                      strokeOpacity={highlight && !active ? 0.2 : 0.58}
                       strokeWidth={active ? 2.4 : 1.2}
                     />
                   );
@@ -275,16 +299,18 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
             </svg>
             {map.licenses.map((license) => {
               const selected = selection?.type === "license" && selection.id === license.id;
+              const highlightedNode = highlight?.type === "license" && highlight.id === license.id;
               return (
                 <button
                   key={license.id}
                   type="button"
                   aria-label={`License: ${license.label}`}
                   aria-pressed={selected}
-                  onFocus={() => setSelection({ type: "license", id: license.id })}
+                  onFocus={() => setFocused({ type: "license", id: license.id })}
+                  onBlur={() => setFocused(null)}
                   onClick={() => setSelection({ type: "license", id: license.id })}
                   className={`absolute z-10 h-8 truncate rounded-lg border px-2 text-left text-xs font-medium ${nodeClass(
-                    selected,
+                    highlightedNode,
                     connectedLicenses.has(license.id),
                   )}`}
                   style={{
@@ -299,17 +325,19 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
             })}
             {map.topics.map((topic) => {
               const selected = selection?.type === "topic" && selection.id === topic.term;
+              const highlightedTopic = highlight?.type === "topic" && highlight.id === topic.term;
               return (
                 <button
                   key={topic.term}
                   type="button"
                   aria-label={`Topic: ${topic.label}, ${topic.count} cards`}
                   aria-pressed={selected}
-                  onFocus={() => setSelection({ type: "topic", id: topic.term })}
+                  onFocus={() => setFocused({ type: "topic", id: topic.term })}
+                  onBlur={() => setFocused(null)}
                   onClick={() => setSelection({ type: "topic", id: topic.term })}
                   className={`absolute z-10 h-8 truncate rounded-lg border px-2 text-left text-xs font-medium ${nodeClass(
-                    selected,
-                    selectedTerms.has(topic.term),
+                    highlightedTopic,
+                    highlightedTerms.has(topic.term),
                   )}`}
                   style={{
                     left: `${(topicX / 1120) * 100}%`,
@@ -323,16 +351,18 @@ export function OfficeMapPage({ map }: { map: OfficeMapData }) {
             })}
             {map.areas.map((area) => {
               const selected = selection?.type === "area" && selection.id === area.id;
+              const highlightedNode = highlight?.type === "area" && highlight.id === area.id;
               return (
                 <button
                   key={area.id}
                   type="button"
                   aria-label={`Office area: ${area.label}`}
                   aria-pressed={selected}
-                  onFocus={() => setSelection({ type: "area", id: area.id })}
+                  onFocus={() => setFocused({ type: "area", id: area.id })}
+                  onBlur={() => setFocused(null)}
                   onClick={() => setSelection({ type: "area", id: area.id })}
                   className={`absolute z-10 h-8 truncate rounded-lg border px-2 text-left text-xs font-medium ${nodeClass(
-                    selected,
+                    highlightedNode,
                     connectedAreas.has(area.id),
                   )}`}
                   style={{
