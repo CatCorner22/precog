@@ -611,8 +611,8 @@ Last verified: 2026-11-19
 
 ### [30.03] Tier bands set remediation timing
 {{index: remediation tiers | seven-day interim; thirty-day permanent fix}}
-**Rule.** Tier 1 is any gate or score ≥30; Tier 2 is 20–29; Tier 3 is 10–19; Tier 4 is below 10. [S2 at Tier assignment]
-**Elements.** Tier 1: interim control ≤7 calendar days and permanent fix ≤30; Tier 2: interim ≤30 days and fix ≤90; Tier 3: fix within two quarters and monitor monthly; Tier 4: annual review.
+**Rule.** Tier 1 is any gate or score ≥24; Tier 2 is 16–23; Tier 3 is 9–15; Tier 4 is below 9. [S2 at Tier assignment]
+**Elements.** Tier 1: interim control ≤7 calendar days and permanent fix ≤30; Tier 2: interim ≤30 days and fix ≤90; Tier 3: fix within two quarters and monitor monthly; Tier 4: annual review. Precog uses the Frontier GRC cutoffs (24/16/9); the source rubric used 30/20/10.
 **Test / steps.** Record tier, evidence, named owner, deadline, and review cadence in the register.
 Last verified: 2026-11-19
 

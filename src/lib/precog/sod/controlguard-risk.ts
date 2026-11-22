@@ -1,30 +1,40 @@
-import { z } from "zod";
 import { finite, fraction, multiply } from "../controlguard-decimal";
 import { controlGuardConflictPriority, controlGuardTriageTier } from "../scoring/bands";
+export { sodInput, triageInput } from "./controlguard-risk-schema";
 
-const named = z.string().refine((value) => Boolean(value.trim()), "Enter a name.");
-const gates = z.strictObject({
-  personal_statutory_liability: z.boolean(),
-  irreversible_money_out: z.boolean(),
-  ability_to_operate: z.boolean(),
-  active_incident: z.boolean(),
-});
-const proof = {
-  compensating_has_actor: z.boolean().optional(),
-  compensating_has_cadence: z.boolean().optional(),
-  compensating_has_artifact: z.boolean().optional(),
-  control: named.optional(),
+type TriageInput = {
+  gates: {
+    personal_statutory_liability: boolean;
+    irreversible_money_out: boolean;
+    ability_to_operate: boolean;
+    active_incident: boolean;
+  };
+  impact?: number;
+  likelihood?: number;
+  legal?: 0 | 2 | 4 | 6;
+  detection?: 0 | 2 | 3;
+  recoverability?: 0 | 2 | 3;
+  aggregation?: 0 | 2;
+  compensating_credit?: number;
+  subject?: string;
+  compensating_has_actor?: boolean;
+  compensating_has_cadence?: boolean;
+  compensating_has_artifact?: boolean;
+  control?: string;
+};
+
+type EvidenceInput = {
+  subject?: string;
+  control?: string;
+  compensating_has_actor?: boolean;
+  compensating_has_cadence?: boolean;
+  compensating_has_artifact?: boolean;
 };
 
 export type ProofStatus = "active" | "lapsed" | "future_signoff" | "no_signoff";
 export type Signoff = (subject: string, control: string) => [ProofStatus, string | null];
 
-function evidence(
-  input: {
-    [K in keyof typeof proof]?: z.output<(typeof proof)[K]>;
-  } & { subject?: string },
-  signoff?: Signoff,
-) {
+function evidence(input: EvidenceInput, signoff?: Signoff) {
   if (
     !input.compensating_has_actor ||
     !input.compensating_has_cadence ||
@@ -36,25 +46,16 @@ function evidence(
   return ["no_signoff", null] as const;
 }
 
-export const triageInput = z.strictObject({
-  gates,
-  impact: z.int().min(1).max(5).optional(),
-  likelihood: z.int().min(1).max(5).optional(),
-  legal: z.literal([0, 2, 4, 6]).optional(),
-  detection: z.literal([0, 2, 3]).optional(),
-  recoverability: z.literal([0, 2, 3]).optional(),
-  aggregation: z.literal([0, 2]).optional(),
-  compensating_credit: z.int().min(0).max(3).optional(),
-  subject: named.optional(),
-  ...proof,
-});
-
 const deadlines = { permanent_fix_days: 30, interim_control_days: 7 };
+const triageGateKeys = [
+  "personal_statutory_liability",
+  "irreversible_money_out",
+  "ability_to_operate",
+  "active_incident",
+] as const satisfies readonly (keyof TriageInput["gates"])[];
 
-export function triage(input: z.infer<typeof triageInput>, signoff?: Signoff) {
-  const triggered_gates = (Object.keys(gates.shape) as (keyof typeof gates.shape)[]).filter(
-    (gate) => input.gates[gate],
-  );
+export function triage(input: TriageInput, signoff?: Signoff) {
+  const triggered_gates = triageGateKeys.filter((gate) => input.gates[gate]);
   if (triggered_gates.length) return { tier: 1, score: null, triggered_gates, ...deadlines };
   const {
     impact,
@@ -99,25 +100,23 @@ export function triage(input: z.infer<typeof triageInput>, signoff?: Signoff) {
 }
 
 const vertices = ["authorization", "custody", "recordkeeping", "reconciliation"] as const;
-export const sodInput = z.strictObject({
-  subject: named,
-  asset_class: z.enum([
-    "Cash",
-    "Payables",
-    "Payroll",
-    "Controlled Substances",
-    "Surgical Implants",
-    "Inventory",
-    "DNS/IT",
-  ]),
-  vertices: z.array(z.enum(vertices)),
-  impact: z.number().min(1).max(10).optional(),
-  exploitability: z.number().min(1).max(10).optional(),
-  factor: z.number().min(0.15).max(1).optional(),
-  ...proof,
-});
+type SodInput = EvidenceInput & {
+  subject: string;
+  asset_class:
+    | "Cash"
+    | "Payables"
+    | "Payroll"
+    | "Controlled Substances"
+    | "Surgical Implants"
+    | "Inventory"
+    | "DNS/IT";
+  vertices: (typeof vertices)[number][];
+  impact?: number;
+  exploitability?: number;
+  factor?: number;
+};
 
-export function sod(input: z.infer<typeof sodInput>, signoff?: Signoff) {
+export function sod(input: SodInput, signoff?: Signoff) {
   const selected = vertices.filter((vertex) => input.vertices.includes(vertex));
   const common = {
     subject: input.subject,

@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { buttonClass } from "@/components/ui/button-variants";
+import { FixFirstCalculator } from "@/components/precog/fix-first-calculator";
 import {
   listPracticeReferenceFn,
   searchPracticeReferenceFn,
@@ -211,6 +212,8 @@ function PracticeDesk() {
           )
         )}
       </section>
+
+      <FixFirstCalculator />
 
       <aside className="mt-7 rounded-2xl border border-border bg-elevated p-5 text-sm leading-6 text-muted">
         <h2 className="font-semibold text-fg">Two-deep coverage</h2>
