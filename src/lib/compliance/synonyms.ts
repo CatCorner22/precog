@@ -1,0 +1,62 @@
+/**
+ * Search synonyms for the Compliance desk. Each group's first term is the
+ * keyword-index label; the other terms are synonyms that find the same cards.
+ * Terms are single lower-case words, matched against card tokens.
+ */
+export const synonymGroups: readonly (readonly string[])[] = [
+  ["abuse", "neglect", "exploitation", "mistreatment", "maltreatment"],
+  ["air", "ventilation", "vapor", "fumes", "scavenging", "aerosol", "gas"],
+  ["anesthesia", "anesthetic", "sedation", "sedative", "anxiolysis", "nitrous"],
+  ["assistant", "rda", "pda", "auxiliary"],
+  ["background", "screening", "fingerprint"],
+  ["bloodborne", "bbp", "pathogen", "pathogens", "hepatitis", "hiv"],
+  ["breach", "incident", "disclosure", "leak"],
+  ["child", "children", "minor", "minors", "pediatric", "juvenile"],
+  ["complaint", "grievance", "dispute"],
+  ["consent", "permission", "authorization"],
+  ["contract", "agreement", "covenant"],
+  ["controlled", "dea", "schedule", "narcotic", "narcotics", "opioid", "opioids"],
+  ["discharge", "termination", "firing", "fired", "dismissal", "retaliation"],
+  ["discrimination", "harassment", "bias"],
+  ["disability", "accommodation", "ada"],
+  ["drug", "drugs", "medication", "medications", "prescription", "prescriptions", "rx"],
+  ["emergency", "urgent", "crisis"],
+  ["employee", "staff", "worker", "workers", "personnel", "team"],
+  ["exposure", "needlestick", "sharps"],
+  ["fire", "evacuation", "extinguisher"],
+  ["hazard", "hazardous", "chemical", "chemicals", "sds", "msds"],
+  ["hipaa", "privacy", "phi", "confidentiality"],
+  ["hygienist", "rdh", "hygiene"],
+  ["infection", "sterilization", "sterilize", "autoclave", "disinfection", "cdc"],
+  ["insurance", "coverage", "insurer", "payer"],
+  ["leave", "absence", "fmla", "vacation"],
+  ["license", "licensure", "licensed", "registration", "permit", "certification"],
+  ["malpractice", "negligence", "liability", "lawsuit", "suit"],
+  ["naloxone", "narcan", "antagonist", "overdose"],
+  ["notice", "notification", "notify", "posting", "poster"],
+  ["osha", "safety", "workplace"],
+  ["overtime", "hours", "flsa"],
+  ["pay", "wage", "wages", "payroll", "salary", "paycheck", "deduction", "offset"],
+  ["patient", "patients", "client"],
+  ["pregnancy", "pregnant", "lactation", "nursing", "pump"],
+  ["ppe", "gloves", "gown", "gowns", "mask", "masks", "eyewear", "respirator", "shield"],
+  ["ppm", "pel", "rel", "twa", "ceiling"],
+  ["radiation", "radiograph", "radiographs", "xray", "x", "ray", "imaging", "radiology"],
+  ["records", "record", "chart", "charting", "documentation", "retention"],
+  ["report", "reporting", "reportable"],
+  ["supervision", "supervise", "supervised", "oversight"],
+  ["telehealth", "teledentistry", "telemedicine", "virtual"],
+  ["training", "education", "course", "ce"],
+  ["vaccine", "vaccination", "immunization", "hepatitisb"],
+  ["waste", "disposal", "amalgam", "mercury"],
+];
+
+/** Display labels for group heads that read better as phrases. */
+export const synonymLabels: Readonly<Record<string, string>> = {
+  air: "air quality",
+  ppm: "PPM exposure limits",
+  ppe: "PPE",
+  hipaa: "HIPAA",
+  osha: "OSHA",
+  xray: "x-ray",
+};

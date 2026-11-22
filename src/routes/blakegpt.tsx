@@ -30,7 +30,7 @@ const modules = [
   },
   {
     name: "Compliance desk",
-    description: "Search 254 cited Tennessee and federal rule cards for the dental office.",
+    description: "Search 255 cited Tennessee and federal rule cards for the dental office.",
     action: "Open the desk",
     href: "/desk",
   },
@@ -51,6 +51,12 @@ const modules = [
     description: "What each Tennessee dental license may do, with cited rules and cautions.",
     action: "Open licenses",
     href: "/licenses",
+  },
+  {
+    name: "Office map",
+    description: "See how each license and office area connects to cited compliance topics.",
+    action: "Open office map",
+    href: "/map",
   },
 ];
 

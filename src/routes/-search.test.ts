@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { isRedirect } from "@tanstack/react-router";
 import { Route as HomeRoute } from "./index";
+import { Route as DeskRoute } from "./desk";
+import { Route as LicensesRoute } from "./licenses";
 import { Route as ReportRoute } from "./report";
 
 // The leading "-" keeps this file out of the generated route tree.
 type Validate = (search: Record<string, unknown>) => unknown;
 const home = HomeRoute.options.validateSearch as Validate;
+const desk = DeskRoute.options.validateSearch as Validate;
+const licenses = LicensesRoute.options.validateSearch as Validate;
 const report = ReportRoute.options.validateSearch as Validate;
 const beforeLoad = HomeRoute.options.beforeLoad as unknown as (ctx: {
   location: { searchStr: string };
@@ -72,5 +76,20 @@ describe("the report address", () => {
     expect(report({ version: "../etc" })).toEqual({});
     expect(report({ version: "abc" })).toEqual({});
     expect(report({ version: 12345 })).toEqual({});
+  });
+});
+
+describe("the Compliance desk and license addresses", () => {
+  it("keeps a desk query within the input limit", () => {
+    expect(desk({ q: "nitrous" })).toEqual({ q: "nitrous" });
+    expect(desk({ q: "x".repeat(201) })).toEqual({ q: "x".repeat(200) });
+    expect(desk({ q: 3, other: "ignored" })).toEqual({});
+  });
+
+  it("keeps a license tab id for map links", () => {
+    expect(licenses({ tab: "dental-hygienist", other: "ignored" })).toEqual({
+      tab: "dental-hygienist",
+    });
+    expect(licenses({ tab: 3 })).toEqual({});
   });
 });

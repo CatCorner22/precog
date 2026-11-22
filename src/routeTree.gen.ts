@@ -16,6 +16,7 @@ import { Route as EvidenceRouteImport } from './routes/evidence'
 import { Route as FirmRouteImport } from './routes/firm'
 import { Route as LicensesRouteImport } from './routes/licenses'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as MapRouteImport } from './routes/map'
 import { Route as OperatorRouteImport } from './routes/operator'
 import { Route as PracticeRouteImport } from './routes/practice'
 import { Route as PricingRouteImport } from './routes/pricing'
@@ -72,6 +73,11 @@ const LicensesRoute = LicensesRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperatorRoute = OperatorRouteImport.update({
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/firm': typeof FirmRoute
   '/licenses': typeof LicensesRoute
   '/login': typeof LoginRoute
+  '/map': typeof MapRoute
   '/operator': typeof OperatorRoute
   '/practice': typeof PracticeRoute
   '/pricing': typeof PricingRoute
@@ -225,6 +232,7 @@ export interface FileRoutesByTo {
   '/firm': typeof FirmRoute
   '/licenses': typeof LicensesRoute
   '/login': typeof LoginRoute
+  '/map': typeof MapRoute
   '/operator': typeof OperatorRoute
   '/practice': typeof PracticeRoute
   '/pricing': typeof PricingRoute
@@ -257,6 +265,7 @@ export interface FileRoutesById {
   '/firm': typeof FirmRoute
   '/licenses': typeof LicensesRoute
   '/login': typeof LoginRoute
+  '/map': typeof MapRoute
   '/operator': typeof OperatorRoute
   '/practice': typeof PracticeRoute
   '/pricing': typeof PricingRoute
@@ -290,6 +299,7 @@ export interface FileRouteTypes {
     | '/firm'
     | '/licenses'
     | '/login'
+    | '/map'
     | '/operator'
     | '/practice'
     | '/pricing'
@@ -321,6 +331,7 @@ export interface FileRouteTypes {
     | '/firm'
     | '/licenses'
     | '/login'
+    | '/map'
     | '/operator'
     | '/practice'
     | '/pricing'
@@ -352,6 +363,7 @@ export interface FileRouteTypes {
     | '/firm'
     | '/licenses'
     | '/login'
+    | '/map'
     | '/operator'
     | '/practice'
     | '/pricing'
@@ -384,6 +396,7 @@ export interface RootRouteChildren {
   FirmRoute: typeof FirmRoute
   LicensesRoute: typeof LicensesRoute
   LoginRoute: typeof LoginRoute
+  MapRoute: typeof MapRoute
   OperatorRoute: typeof OperatorRoute
   PracticeRoute: typeof PracticeRoute
   PricingRoute: typeof PricingRoute
@@ -457,6 +470,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operator': {
@@ -624,6 +644,7 @@ const rootRouteChildren: RootRouteChildren = {
   FirmRoute: FirmRoute,
   LicensesRoute: LicensesRoute,
   LoginRoute: LoginRoute,
+  MapRoute: MapRoute,
   OperatorRoute: OperatorRoute,
   PracticeRoute: PracticeRoute,
   PricingRoute: PricingRoute,

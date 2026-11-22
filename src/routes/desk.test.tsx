@@ -3,10 +3,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (options: unknown) => ({ options }),
+  createFileRoute: () => (options: unknown) => ({
+    options,
+    useLoaderData: () => ({ sections: [], keywords: [] }),
+    useSearch: () => ({}),
+  }),
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
 vi.mock("@/lib/compliance/cards-server", () => ({
+  complianceIndexFn: vi.fn(),
   searchComplianceCardsFn: vi.fn(),
 }));
 
@@ -28,14 +33,17 @@ describe("BlakeGPT compliance desk", () => {
       "Compliance desk | BlakeGPT",
     );
     expect(options.head().meta.find((meta) => meta.name === "description")?.content).toBe(
-      "Search 254 cited Tennessee and federal rule cards for the dental office.",
+      "Search 255 cited Tennessee and federal rule cards for the dental office.",
     );
     expect(html).toContain(
-      "Search 254 cited Tennessee and federal rule cards for the dental office.",
+      "Search 255 cited Tennessee and federal rule cards for the dental office.",
     );
     expect(html).toContain('<a href="/licenses">Each license</a>');
+    expect(html).toContain('<a href="/map">Office map</a>');
     expect(html).toContain("Ask about a rule, for example: sharps disposal");
     expect(html).toContain('aria-label="Filter by section"');
+    expect(html).toContain(">Contents</h2>");
+    expect(html).toContain(">Keyword index</h2>");
   });
 
   it("shows the dental Reverie header and the fixed privacy note", () => {

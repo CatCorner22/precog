@@ -1,17 +1,21 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { buttonClass } from "@/components/ui/button-variants";
-import { searchComplianceCardsFn } from "@/lib/compliance/cards-server";
-import type { ComplianceCardResult } from "@/lib/compliance/cards";
+import { complianceIndexFn, searchComplianceCardsFn } from "@/lib/compliance/cards-server";
+import type { ComplianceCardResult, ComplianceIndex } from "@/lib/compliance/cards";
+import { synonymLabels } from "@/lib/compliance/synonyms";
 
 export const Route = createFileRoute("/desk")({
+  validateSearch: (search: Record<string, unknown>): { q?: string } =>
+    typeof search.q === "string" ? { q: search.q.slice(0, 200) } : {},
+  loader: () => complianceIndexFn(),
   component: ComplianceDesk,
   head: () => ({
     meta: [
       { title: "Compliance desk | BlakeGPT" },
       {
         name: "description",
-        content: "Search 254 cited Tennessee and federal rule cards for the dental office.",
+        content: "Search 255 cited Tennessee and federal rule cards for the dental office.",
       },
     ],
   }),
@@ -33,17 +37,22 @@ type SectionId = (typeof sections)[number]["id"];
 type SearchState = "idle" | "loading" | "results" | "empty" | "error";
 
 function ComplianceDesk() {
-  const [query, setQuery] = useState("");
+  const index = Route.useLoaderData() as ComplianceIndex;
+  const { q } = Route.useSearch();
+  const [query, setQuery] = useState(q ?? "");
   const [section, setSection] = useState<SectionId>("all");
+  const [activeSubtopic, setActiveSubtopic] = useState<string | null>(null);
   const [state, setState] = useState<SearchState>("idle");
   const [results, setResults] = useState<ComplianceCardResult[]>([]);
   const [showingStale, setShowingStale] = useState(false);
   const requestId = useRef(0);
+  const resultsRef = useRef<ComplianceCardResult[]>([]);
 
-  async function search(text = query, selectedSection = section) {
+  const search = useCallback(async (text: string, selectedSection: SectionId) => {
     const normalized = text.trim();
-    if (!normalized) {
+    if (!normalized && selectedSection === "all") {
       requestId.current += 1;
+      resultsRef.current = [];
       setResults([]);
       setShowingStale(false);
       setState("idle");
@@ -52,7 +61,7 @@ function ComplianceDesk() {
 
     const currentRequest = ++requestId.current;
     setState("loading");
-    setShowingStale(results.length > 0);
+    setShowingStale(resultsRef.current.length > 0);
     try {
       const found = await searchComplianceCardsFn({
         data: {
@@ -61,19 +70,28 @@ function ComplianceDesk() {
         },
       });
       if (currentRequest !== requestId.current) return;
+      resultsRef.current = found;
       setResults(found);
       setShowingStale(false);
       setState(found.length ? "results" : "empty");
     } catch {
       if (currentRequest !== requestId.current) return;
-      setShowingStale(results.length > 0);
+      setShowingStale(resultsRef.current.length > 0);
       setState("error");
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const initialQuery = q ?? "";
+    setQuery(initialQuery);
+    setSection("all");
+    setActiveSubtopic(null);
+    void search(initialQuery, "all");
+  }, [q, search]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void search();
+    void search(query, section);
   }
 
   return (
@@ -101,14 +119,22 @@ function ComplianceDesk() {
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Compliance desk</h1>
           <p className="mt-1 text-sm text-muted">
-            Search 254 cited Tennessee and federal rule cards for the dental office.
+            Search 255 cited Tennessee and federal rule cards for the dental office.
           </p>
-          <Link
-            to="/licenses"
-            className="mt-2 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Each license
-          </Link>
+          <nav aria-label="Compliance references" className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            <Link
+              to="/licenses"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Each license
+            </Link>
+            <Link
+              to="/map"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Office map
+            </Link>
+          </nav>
         </div>
       </header>
 
@@ -123,7 +149,10 @@ function ComplianceDesk() {
               type="search"
               maxLength={200}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActiveSubtopic(null);
+              }}
               placeholder="Search Tennessee and federal cards"
               className="min-h-11 min-w-0 flex-1 rounded-lg border border-border-strong bg-bg px-3 py-2 text-sm"
             />
@@ -141,6 +170,7 @@ function ComplianceDesk() {
               aria-pressed={section === item.id}
               onClick={() => {
                 setSection(item.id);
+                setActiveSubtopic(null);
                 void search(query, item.id);
               }}
               className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -153,13 +183,99 @@ function ComplianceDesk() {
             </button>
           ))}
         </div>
+        {section !== "all" && (
+          <div
+            className="mt-3 flex flex-wrap gap-2"
+            role="group"
+            aria-label={`${sections.find((item) => item.id === section)?.label ?? section} topics`}
+          >
+            {(index.sections.find((item) => item.id === section)?.subtopics ?? [])
+              .slice(0, 12)
+              .map((topic) => (
+                <button
+                  key={topic.term}
+                  type="button"
+                  aria-pressed={activeSubtopic === topic.term}
+                  onClick={() => {
+                    setQuery(topic.term);
+                    setActiveSubtopic(topic.term);
+                    void search(topic.term, section);
+                  }}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                    activeSubtopic === topic.term
+                      ? "border-primary bg-primary text-primary-fg"
+                      : "border-border-strong bg-bg text-muted hover:bg-elevated"
+                  }`}
+                >
+                  {topic.label} ({topic.count})
+                </button>
+              ))}
+          </div>
+        )}
       </section>
 
       <section className="mt-7 space-y-4" aria-label="Compliance search results">
         {state === "idle" && (
-          <p className="rounded-xl border border-border bg-elevated p-5 text-sm text-muted">
-            Search the card library for a rule, deadline, or source.
-          </p>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
+              <h2 className="text-lg font-semibold tracking-tight">Contents</h2>
+              <div className="mt-4 space-y-2">
+                {index.sections.map((item) => (
+                  <details
+                    key={item.id}
+                    className="rounded-lg border border-border bg-elevated px-3 py-2"
+                  >
+                    <summary className="cursor-pointer text-sm font-medium">
+                      {sections.find((sectionItem) => sectionItem.id === item.id)?.label ?? item.id}{" "}
+                      ({item.count})
+                    </summary>
+                    <ul className="mt-2 space-y-1 border-l border-border-strong pl-3">
+                      {item.titles.map((title) => (
+                        <li key={title.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuery(title.title);
+                              setActiveSubtopic(null);
+                              void search(title.title, "all");
+                            }}
+                            className="text-left text-sm text-primary underline-offset-4 hover:underline"
+                          >
+                            {title.title}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ))}
+              </div>
+            </section>
+            <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
+              <h2 className="text-lg font-semibold tracking-tight">Keyword index</h2>
+              <ul className="mt-4 space-y-1.5">
+                {index.keywords.map((keyword) => (
+                  <li key={keyword.term}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery(keyword.term);
+                        setActiveSubtopic(null);
+                        void search(keyword.term, "all");
+                      }}
+                      className="w-full rounded-lg px-3 py-2 text-left hover:bg-elevated"
+                    >
+                      <span className="block text-sm font-medium text-primary">
+                        {synonymLabels[keyword.term] ?? keyword.term} ({keyword.count})
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        also: {keyword.synonyms.join(", ")}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
         )}
         {state === "loading" && results.length === 0 && (
           <p role="status" className="rounded-xl border border-border bg-elevated p-5 text-sm">
@@ -185,7 +301,7 @@ function ComplianceDesk() {
             </p>
             <button
               type="button"
-              onClick={() => void search()}
+              onClick={() => void search(query, section)}
               className={`${buttonClass({ variant: "secondary" })} mt-4`}
             >
               Retry search
@@ -206,6 +322,11 @@ function ComplianceDesk() {
               No card covers this yet. Check the official source.
             </p>
           </div>
+        )}
+        {state === "results" && !query.trim() && section !== "all" && (
+          <h2 className="text-lg font-semibold tracking-tight">
+            {sections.find((item) => item.id === section)?.label ?? section}: {results.length} cards
+          </h2>
         )}
         {results.map((card) => (
           <article

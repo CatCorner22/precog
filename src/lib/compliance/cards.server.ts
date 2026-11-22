@@ -1,4 +1,10 @@
-import { parseComplianceCard, searchComplianceCards, type ComplianceCard } from "./cards";
+import {
+  complianceIndex,
+  parseComplianceCard,
+  searchComplianceCards,
+  type ComplianceCard,
+} from "./cards";
+import { officeMap } from "./office-map";
 
 const cardFiles = import.meta.glob<string>("/knowledge/compliance/**/*.md", {
   query: "?raw",
@@ -29,4 +35,12 @@ async function loadCards() {
 
 export async function searchComplianceCardsFromDisk(query: string, section?: string) {
   return searchComplianceCards(query, await loadCards(), { section });
+}
+
+export async function complianceIndexFromDisk() {
+  return complianceIndex(await loadCards());
+}
+
+export async function officeMapFromDisk() {
+  return officeMap(await loadCards());
 }

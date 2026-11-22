@@ -38,14 +38,14 @@ describe("BlakeGPT home", () => {
     expect(html).toContain("Welcome, Amanda. Your practice has a clear place to begin.");
   });
 
-  it("offers six modules and resolves Frontier GRC to Voyager's real tab", () => {
-    expect(html.match(/<article\b/g)).toHaveLength(6);
+  it("offers seven modules and resolves Frontier GRC to Voyager's real tab", () => {
+    expect(html.match(/<article\b/g)).toHaveLength(7);
     expect(html).toContain("Internal controls and continuity for the practice.");
     expect(html).toContain(
       "Checks for invoices, notice deadlines, duty conflicts and policy wording.",
     );
     expect(html).toContain(
-      "Search 254 cited Tennessee and federal rule cards for the dental office.",
+      "Search 255 cited Tennessee and federal rule cards for the dental office.",
     );
     expect(html).toContain("Check study numbers, design flaws, and evidence grades.");
     expect(html).toContain(
@@ -54,12 +54,16 @@ describe("BlakeGPT home", () => {
     expect(html).toContain(
       "What each Tennessee dental license may do, with cited rules and cautions.",
     );
+    expect(html).toContain(
+      "See how each license and office area connects to cited compliance topics.",
+    );
     expect(html).toMatch(/href="\/"[^>]*>Open Precog<\/a>/);
     expect(html).toMatch(/href="\/\?tab=pioneer"[^>]*>Open checks<\/a>/);
     expect(html).toMatch(/href="\/desk"[^>]*>Open the desk<\/a>/);
     expect(html).toMatch(/href="\/evidence"[^>]*>Open the evaluator<\/a>/);
     expect(html).toMatch(/href="\/practice"[^>]*>Open the reference<\/a>/);
     expect(html).toMatch(/href="\/licenses"[^>]*>Open licenses<\/a>/);
+    expect(html).toMatch(/href="\/map"[^>]*>Open office map<\/a>/);
   });
 
   it("uses Reverie's unaltered hero art and a phone-to-desktop card grid", () => {
