@@ -120,6 +120,7 @@ describe("compliance knowledge cards", () => {
   it("indexes every section and counts abuse and OSHA subtopics", () => {
     const index = complianceIndex(cards);
     expect(index.sections.reduce((total, section) => total + section.count, 0)).toBe(255);
+    expect(index.keywords.map(({ count }) => count)).not.toContain(cards.length);
     expect(index.keywords.find(({ term }) => term === "abuse")?.count).toBeGreaterThanOrEqual(2);
     const osha = index.sections.find(({ id }) => id === "osha");
     expect(osha?.subtopics.map(({ term }) => term)).toEqual(expect.arrayContaining(["air", "ppm"]));

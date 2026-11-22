@@ -153,7 +153,7 @@ function isStale(card: ComplianceCard, now: Date) {
 function matchingCardsForGroup(cards: ComplianceCard[], group: readonly string[]) {
   const groupTokens = new Set(group.flatMap(tokens));
   return cards.filter((card) => {
-    const cardTokens = new Set(tokens(`${card.title} ${card.citation} ${card.body}`));
+    const cardTokens = new Set(tokens(card.title));
     return [...groupTokens].some((token) => cardTokens.has(token));
   });
 }
@@ -183,7 +183,7 @@ export function complianceIndex(cards: ComplianceCard[]): ComplianceIndex {
         label: synonymLabels[group[0]] ?? group[0],
         count: matchingCardsForGroup(sectionCards, group).length,
       }))
-      .filter(({ count }) => count > 0)
+      .filter(({ count }) => count > 0 && count !== sectionCards.length)
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
   }));
 

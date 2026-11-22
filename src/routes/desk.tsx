@@ -189,27 +189,25 @@ function ComplianceDesk() {
             role="group"
             aria-label={`${sections.find((item) => item.id === section)?.label ?? section} topics`}
           >
-            {(index.sections.find((item) => item.id === section)?.subtopics ?? [])
-              .slice(0, 12)
-              .map((topic) => (
-                <button
-                  key={topic.term}
-                  type="button"
-                  aria-pressed={activeSubtopic === topic.term}
-                  onClick={() => {
-                    setQuery(topic.term);
-                    setActiveSubtopic(topic.term);
-                    void search(topic.term, section);
-                  }}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    activeSubtopic === topic.term
-                      ? "border-primary bg-primary text-primary-fg"
-                      : "border-border-strong bg-bg text-muted hover:bg-elevated"
-                  }`}
-                >
-                  {topic.label} ({topic.count})
-                </button>
-              ))}
+            {(index.sections.find((item) => item.id === section)?.subtopics ?? []).map((topic) => (
+              <button
+                key={topic.term}
+                type="button"
+                aria-pressed={activeSubtopic === topic.term}
+                onClick={() => {
+                  setQuery(topic.term);
+                  setActiveSubtopic(topic.term);
+                  void search(topic.term, section);
+                }}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  activeSubtopic === topic.term
+                    ? "border-primary bg-primary text-primary-fg"
+                    : "border-border-strong bg-bg text-muted hover:bg-elevated"
+                }`}
+              >
+                {topic.label} ({topic.count})
+              </button>
+            ))}
           </div>
         )}
       </section>
