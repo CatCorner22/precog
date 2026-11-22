@@ -29,6 +29,17 @@ describe("Practice desk reference loader", () => {
     expect(searchPracticeReferenceFromDisk("   ")).toEqual([]);
   });
 
+  it("pins the revised tier cutoffs and their source note", () => {
+    const section = listPracticeSectionsFromDisk().find(({ id }) => id === 30);
+
+    expect(section?.text).toContain(
+      "Tier 1 is any gate or score ≥24; Tier 2 is 16–23; Tier 3 is 9–15; Tier 4 is below 9.",
+    );
+    expect(section?.text).toContain(
+      "Precog uses the Frontier GRC cutoffs (24/16/9); the source rubric used 30/20/10.",
+    );
+  });
+
   it("omits generated apparatus sections and preserves source keys", () => {
     const sections = listPracticeSectionsFromDisk();
     expect(sections.some(({ id }) => [2, 91, 92, 99].includes(id))).toBe(false);

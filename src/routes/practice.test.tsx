@@ -47,6 +47,13 @@ describe("BlakeGPT practice desk", () => {
     expect(html).toContain("Metrics");
   });
 
+  it("renders a Fix first calculator with an immediate default result", () => {
+    expect(html).toContain("Fix first");
+    expect(html).toContain("Tier 4");
+    expect(html).toContain("Score 1");
+    expect(html).toContain("Scores order the work; they are not measured probabilities.");
+  });
+
   it("uses dental Reverie art, includes the two-deep note, and keeps the exact footer", () => {
     expect(html).toContain(
       '<img src="/reverie/reverie-dental.webp" alt="Reverie, the dental practice operations cat" width="512" height="512" loading="lazy"',

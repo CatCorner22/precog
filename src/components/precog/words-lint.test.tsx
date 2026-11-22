@@ -72,6 +72,7 @@ function textOf(html: string): string {
 describe('"Fix first" keeps one meaning', () => {
   /** The only files that may say "Fix first", each with its reason. */
   const ALLOWED: Record<string, string> = {
+    "src/components/precog/fix-first-calculator.tsx": "the triage calculator's section title",
     // PRIORITY_BAND_LABEL and the severity key: the priority list's top band.
     "src/lib/precog/scoring/bands.ts": "the priority list",
     // Report layouts 1 to 5 print the words they printed when a version was locked.
