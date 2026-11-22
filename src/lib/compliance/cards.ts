@@ -202,12 +202,18 @@ export function complianceIndex(cards: ComplianceCard[]): ComplianceIndex {
 export function searchComplianceCards(
   query: string,
   cards: ComplianceCard[],
-  options: { section?: string; now?: Date; limit?: number } = {},
+  options: { section?: string; topic?: string; now?: Date; limit?: number } = {},
 ): ComplianceCardResult[] {
   const candidates = cards.filter((card) => !options.section || card.section === options.section);
   if (candidates.length === 0) return [];
 
   const now = options.now ?? new Date();
+  if (options.topic) {
+    return cardsForSynonymGroup(candidates, options.topic)
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map((card) => resultForCard(card, now));
+  }
+
   if (!query.trim()) {
     if (!options.section) return [];
     return candidates

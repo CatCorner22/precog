@@ -33,8 +33,12 @@ async function loadCards() {
   }
 }
 
-export async function searchComplianceCardsFromDisk(query: string, section?: string) {
-  return searchComplianceCards(query, await loadCards(), { section });
+export async function searchComplianceCardsFromDisk(
+  query: string,
+  section?: string,
+  topic?: string,
+) {
+  return searchComplianceCards(query, await loadCards(), { section, topic });
 }
 
 export async function complianceIndexFromDisk() {

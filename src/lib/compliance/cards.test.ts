@@ -128,6 +128,20 @@ describe("compliance knowledge cards", () => {
     expect(osha?.subtopics.find(({ term }) => term === "ppm")?.count).toBeGreaterThanOrEqual(1);
   });
 
+  it("returns every card for an indexed topic without the search result cap", () => {
+    const expectedCount =
+      complianceIndex(cards).keywords.find(({ term }) => term === "controlled")?.count ?? 0;
+    const results = searchComplianceCards("Controlled substances", cards, {
+      topic: "controlled",
+    });
+
+    expect(expectedCount).toBeGreaterThan(10);
+    expect(results).toHaveLength(expectedCount);
+    expect(results.map(({ title }) => title)).toEqual(
+      results.map(({ title }) => title).sort((a, b) => a.localeCompare(b)),
+    );
+  });
+
   it("keeps Office map edges on resolved topics and real license tabs", () => {
     const map = officeMap(cards);
     const topicTerms = new Set(map.topics.map(({ term }) => term));

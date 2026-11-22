@@ -47,8 +47,14 @@ function ComplianceDesk() {
   const [showingStale, setShowingStale] = useState(false);
   const requestId = useRef(0);
   const resultsRef = useRef<ComplianceCardResult[]>([]);
+  const sectionLabel = sections.find((item) => item.id === section)?.label ?? section;
+  const headingLabel = query.trim()
+    ? `${section === "all" ? "" : `${sectionLabel} · `}${query.trim()}`
+    : section === "all"
+      ? ""
+      : sectionLabel;
 
-  const search = useCallback(async (text: string, selectedSection: SectionId) => {
+  const search = useCallback(async (text: string, selectedSection: SectionId, topic?: string) => {
     const normalized = text.trim();
     if (!normalized && selectedSection === "all") {
       requestId.current += 1;
@@ -67,6 +73,7 @@ function ComplianceDesk() {
         data: {
           query: normalized,
           ...(selectedSection !== "all" ? { section: selectedSection } : {}),
+          ...(topic ? { topic } : {}),
         },
       });
       if (currentRequest !== requestId.current) return;
@@ -195,9 +202,9 @@ function ComplianceDesk() {
                 type="button"
                 aria-pressed={activeSubtopic === topic.term}
                 onClick={() => {
-                  setQuery(topic.term);
+                  setQuery(topic.label);
                   setActiveSubtopic(topic.term);
-                  void search(topic.term, section);
+                  void search(topic.label, section, topic.term);
                 }}
                 className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                   activeSubtopic === topic.term
@@ -256,9 +263,10 @@ function ComplianceDesk() {
                     <button
                       type="button"
                       onClick={() => {
-                        setQuery(keyword.term);
+                        const label = synonymLabels[keyword.term] ?? keyword.term;
+                        setQuery(label);
                         setActiveSubtopic(null);
-                        void search(keyword.term, "all");
+                        void search(label, "all", keyword.term);
                       }}
                       className="w-full rounded-lg px-3 py-2 text-left hover:bg-elevated"
                     >
@@ -321,9 +329,9 @@ function ComplianceDesk() {
             </p>
           </div>
         )}
-        {state === "results" && !query.trim() && section !== "all" && (
+        {state === "results" && headingLabel && (
           <h2 className="text-lg font-semibold tracking-tight">
-            {sections.find((item) => item.id === section)?.label ?? section}: {results.length} cards
+            {headingLabel}: {results.length} cards
           </h2>
         )}
         {results.map((card) => (
