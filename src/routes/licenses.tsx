@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { listLicenseReferencesFn } from "@/lib/licenses/reference-server";
 import type { LicenseBlock, LicenseReference } from "@/lib/licenses/types";
 
 export const Route = createFileRoute("/licenses")({
+  validateSearch: (search: Record<string, unknown>): { tab?: string } =>
+    typeof search.tab === "string" ? { tab: search.tab } : {},
   loader: () => listLicenseReferencesFn(),
   component: LicensesRoute,
   head: () => ({
@@ -18,13 +20,31 @@ export const Route = createFileRoute("/licenses")({
 });
 
 function LicensesRoute() {
-  return <LicenseReferencePage entries={Route.useLoaderData()} />;
+  const { tab } = Route.useSearch();
+  return <LicenseReferencePage entries={Route.useLoaderData()} initialTab={tab} />;
 }
 
-export function LicenseReferencePage({ entries }: { entries: LicenseReference[] }) {
-  const [selectedId, setSelectedId] = useState(entries[0]?.id ?? "");
+export function LicenseReferencePage({
+  entries,
+  initialTab,
+}: {
+  entries: LicenseReference[];
+  initialTab?: string;
+}) {
+  const [selectedId, setSelectedId] = useState(
+    initialTab && entries.some((entry) => entry.id === initialTab)
+      ? initialTab
+      : (entries[0]?.id ?? ""),
+  );
   const [treatmentFilter, setTreatmentFilter] = useState("");
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  useEffect(() => {
+    if (!initialTab) return;
+    setSelectedId(
+      entries.some((entry) => entry.id === initialTab) ? initialTab : (entries[0]?.id ?? ""),
+    );
+  }, [entries, initialTab]);
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex: number | undefined;

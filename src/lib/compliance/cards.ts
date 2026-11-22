@@ -1,3 +1,5 @@
+import { synonymGroups, synonymLabels } from "./synonyms";
+
 export interface ComplianceCard {
   id: string;
   title: string;
@@ -17,6 +19,18 @@ export interface ComplianceCardResult extends Pick<
   body: string;
   excerpt: string;
   stale: boolean;
+}
+
+export interface ComplianceIndexSection {
+  id: string;
+  count: number;
+  titles: { id: string; title: string }[];
+  subtopics: { term: string; label: string; count: number }[];
+}
+
+export interface ComplianceIndex {
+  sections: ComplianceIndexSection[];
+  keywords: { term: string; synonyms: string[]; count: number }[];
 }
 
 type FrontMatterValue = string | string[];
@@ -136,16 +150,89 @@ function isStale(card: ComplianceCard, now: Date) {
   return Number.isFinite(verifiedAt) && now.getTime() - verifiedAt > card.review_days * 86_400_000;
 }
 
+function matchingCardsForGroup(cards: ComplianceCard[], group: readonly string[]) {
+  const groupTokens = new Set(group.flatMap(tokens));
+  return cards.filter((card) => {
+    const cardTokens = new Set(tokens(card.title));
+    return [...groupTokens].some((token) => cardTokens.has(token));
+  });
+}
+
+export function cardsForSynonymGroup(cards: ComplianceCard[], term: string) {
+  const group = synonymGroups.find(([head]) => head === term);
+  return group ? matchingCardsForGroup(cards, group) : [];
+}
+
+export function complianceIndex(cards: ComplianceCard[]): ComplianceIndex {
+  const cardsBySection = new Map<string, ComplianceCard[]>();
+  for (const card of cards) {
+    const sectionCards = cardsBySection.get(card.section) ?? [];
+    sectionCards.push(card);
+    cardsBySection.set(card.section, sectionCards);
+  }
+
+  const sections = [...cardsBySection].map(([id, sectionCards]) => ({
+    id,
+    count: sectionCards.length,
+    titles: sectionCards
+      .map(({ id: cardId, title }) => ({ id: cardId, title }))
+      .sort((a, b) => a.title.localeCompare(b.title)),
+    subtopics: synonymGroups
+      .map((group) => ({
+        term: group[0],
+        label: synonymLabels[group[0]] ?? group[0],
+        count: matchingCardsForGroup(sectionCards, group).length,
+      }))
+      .filter(({ count }) => count > 0 && count !== sectionCards.length)
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+  }));
+
+  const keywords = synonymGroups
+    .map(([term, ...synonyms]) => ({
+      term,
+      synonyms,
+      count: matchingCardsForGroup(cards, [term, ...synonyms]).length,
+    }))
+    .filter(({ count }) => count > 0)
+    .sort((a, b) => a.term.localeCompare(b.term));
+
+  return { sections, keywords };
+}
+
 export function searchComplianceCards(
   query: string,
   cards: ComplianceCard[],
-  options: { section?: string; now?: Date; limit?: number } = {},
+  options: { section?: string; topic?: string; now?: Date; limit?: number } = {},
 ): ComplianceCardResult[] {
-  const queryTokens = [...new Set(tokens(query))];
-  if (queryTokens.length === 0) return [];
-
   const candidates = cards.filter((card) => !options.section || card.section === options.section);
   if (candidates.length === 0) return [];
+
+  const now = options.now ?? new Date();
+  if (options.topic) {
+    return cardsForSynonymGroup(candidates, options.topic)
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map((card) => resultForCard(card, now));
+  }
+
+  if (!query.trim()) {
+    if (!options.section) return [];
+    return candidates
+      .slice()
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map((card) => resultForCard(card, now));
+  }
+
+  const originalTokens = [...new Set(tokens(query))];
+  if (originalTokens.length === 0) return [];
+  const queryTokenWeights = new Map(originalTokens.map((token) => [token, 1]));
+  for (const token of originalTokens) {
+    for (const group of synonymGroups) {
+      if (!group.includes(token)) continue;
+      for (const synonym of group) {
+        if (!queryTokenWeights.has(synonym)) queryTokenWeights.set(synonym, 0.5);
+      }
+    }
+  }
 
   const documents = candidates.map((card) => {
     const title = count(tokens(card.title));
@@ -163,10 +250,9 @@ export function searchComplianceCards(
     }
   }
 
-  const now = options.now ?? new Date();
   const ranked = documents.map((document) => {
     let score = 0;
-    for (const token of queryTokens) {
+    for (const [token, weight] of queryTokenWeights) {
       const frequency =
         (document.title.get(token) ?? 0) * 3 +
         (document.citation.get(token) ?? 0) * 2 +
@@ -175,23 +261,12 @@ export function searchComplianceCards(
       const df = documentFrequency.get(token) ?? 0;
       const idf = Math.log(1 + (documents.length - df + 0.5) / (df + 0.5));
       score +=
-        (idf * frequency * 2.2) /
+        (weight * (idf * frequency * 2.2)) /
         (frequency + 1.2 * (0.25 + 0.75 * (document.length / averageLength)));
     }
     return {
       score,
-      result: {
-        id: document.card.id,
-        title: document.card.title,
-        section: document.card.section,
-        status: document.card.status,
-        citation: document.card.citation,
-        last_verified: document.card.last_verified,
-        source_url: document.card.source_url,
-        body: plainText(document.card.body),
-        excerpt: excerpt(document.card.body),
-        stale: isStale(document.card, now),
-      },
+      result: resultForCard(document.card, now),
     };
   });
 
@@ -200,4 +275,19 @@ export function searchComplianceCards(
     .sort((a, b) => b.score - a.score || a.result.title.localeCompare(b.result.title))
     .slice(0, options.limit ?? 10)
     .map(({ result }) => result);
+}
+
+function resultForCard(card: ComplianceCard, now: Date): ComplianceCardResult {
+  return {
+    id: card.id,
+    title: card.title,
+    section: card.section,
+    status: card.status,
+    citation: card.citation,
+    last_verified: card.last_verified,
+    source_url: card.source_url,
+    body: plainText(card.body),
+    excerpt: excerpt(card.body),
+    stale: isStale(card, now),
+  };
 }
